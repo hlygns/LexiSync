@@ -37,8 +37,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Development only: create or update the tables on startup, so "docker compose up" is enough.
-if (app.Environment.IsDevelopment())
+// Create or update the tables on startup, so "docker compose up" is enough.
+// Controlled by configuration: on in Development, opt-in elsewhere (Database__MigrateOnStartup=true).
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -54,6 +55,14 @@ app.MapGet("/health", async (AppDbContext db) =>
         ? Results.Ok(new { status = "healthy" })
         : Results.Json(new { status = "unhealthy" }, statusCode: StatusCodes.Status503ServiceUnavailable));
 
+// Reference data; the mobile app keeps a local copy.
+app.MapGet("/exams", async (AppDbContext db, CancellationToken ct) =>
+    await db.Exams.AsNoTracking().OrderBy(e => e.Id).Select(e => new { e.Id, e.Code, e.Name }).ToListAsync(ct));
+
 app.MapAuthEndpoints();
+app.MapSyncEndpoints();
 
 app.Run();
+
+// Lets the integration tests start the API in-process (WebApplicationFactory<Program>).
+public partial class Program;

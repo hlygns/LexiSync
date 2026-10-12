@@ -4,6 +4,7 @@ namespace LexiSync.Domain.Entities;
 public class ReviewLog
 {
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
     public Guid CardId { get; set; }
     public ReviewGrade Grade { get; set; }
     public DateTimeOffset ReviewedAt { get; set; }

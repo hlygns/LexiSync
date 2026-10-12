@@ -1,7 +1,9 @@
 using LexiSync.Application.Auth;
+using LexiSync.Application.Sync;
 using LexiSync.Domain.Entities;
 using LexiSync.Infrastructure.Auth;
 using LexiSync.Infrastructure.Persistence;
+using LexiSync.Infrastructure.Sync;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +19,7 @@ public static class DependencyInjection
         services.AddSingleton(jwt);
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ISyncService, SyncService>();
 
         return services;
     }

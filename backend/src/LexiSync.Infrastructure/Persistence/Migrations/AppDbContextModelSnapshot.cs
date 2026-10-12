@@ -23,6 +23,8 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("server_version_seq");
+
             modelBuilder.Entity("LexiSync.Domain.Entities.Card", b =>
                 {
                     b.Property<Guid>("Id")
@@ -59,11 +61,14 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DeckId");
 
-                    b.HasIndex("ServerVersion");
+                    b.HasIndex("UserId", "ServerVersion");
 
                     b.ToTable("Cards");
                 });
@@ -98,9 +103,7 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExamId");
 
-                    b.HasIndex("ServerVersion");
-
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "ServerVersion");
 
                     b.ToTable("Decks");
                 });
@@ -157,6 +160,25 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("LexiSync.Domain.Entities.ProcessedChange", b =>
+                {
+                    b.Property<Guid>("ChangeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ChangeId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ProcessedChanges");
+                });
+
             modelBuilder.Entity("LexiSync.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -205,11 +227,14 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                     b.Property<long>("ServerVersion")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CardId");
 
-                    b.HasIndex("ServerVersion");
+                    b.HasIndex("UserId", "ServerVersion");
 
                     b.ToTable("ReviewLogs");
                 });
@@ -271,6 +296,12 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                         .HasForeignKey("DeckId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("LexiSync.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LexiSync.Domain.Entities.Deck", b =>
@@ -281,6 +312,15 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("LexiSync.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LexiSync.Domain.Entities.ProcessedChange", b =>
+                {
                     b.HasOne("LexiSync.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -302,6 +342,12 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                     b.HasOne("LexiSync.Domain.Entities.Card", null)
                         .WithMany()
                         .HasForeignKey("CardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LexiSync.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

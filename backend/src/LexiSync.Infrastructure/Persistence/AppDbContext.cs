@@ -12,9 +12,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ReviewState> ReviewStates => Set<ReviewState>();
     public DbSet<ReviewLog> ReviewLogs => Set<ReviewLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ProcessedChange> ProcessedChanges => Set<ProcessedChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Source of ServerVersion: one counter shared by all synced tables, so a device
+        // needs to remember a single number to ask "what changed since then".
+        modelBuilder.HasSequence<long>("server_version_seq");
+
         modelBuilder.Entity<User>(user =>
         {
             user.Property(u => u.Email).HasMaxLength(256);
@@ -39,7 +44,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             deck.HasOne<User>().WithMany().HasForeignKey(d => d.UserId);
             // Restrict: an exam that still has decks cannot be deleted.
             deck.HasOne<Exam>().WithMany().HasForeignKey(d => d.ExamId).OnDelete(DeleteBehavior.Restrict);
-            deck.HasIndex(d => d.ServerVersion);
+            // Serves the pull query: this user's rows with ServerVersion > N.
+            deck.HasIndex(d => new { d.UserId, d.ServerVersion });
         });
 
         modelBuilder.Entity<Card>(card =>
@@ -47,8 +53,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             card.Property(c => c.Term).HasMaxLength(200);
             card.Property(c => c.Meaning).HasMaxLength(500);
             card.Property(c => c.Example).HasMaxLength(1000);
+            card.HasOne<User>().WithMany().HasForeignKey(c => c.UserId);
             card.HasOne<Deck>().WithMany().HasForeignKey(c => c.DeckId);
-            card.HasIndex(c => c.ServerVersion);
+            card.HasIndex(c => new { c.UserId, c.ServerVersion });
         });
 
         modelBuilder.Entity<ReviewState>(state =>
@@ -62,8 +69,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<ReviewLog>(log =>
         {
+            log.HasOne<User>().WithMany().HasForeignKey(l => l.UserId);
             log.HasOne<Card>().WithMany().HasForeignKey(l => l.CardId);
-            log.HasIndex(l => l.ServerVersion);
+            log.HasIndex(l => new { l.UserId, l.ServerVersion });
         });
 
         modelBuilder.Entity<RefreshToken>(token =>
@@ -71,6 +79,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             token.Property(t => t.TokenHash).HasMaxLength(128);
             token.HasOne<User>().WithMany().HasForeignKey(t => t.UserId);
             token.HasIndex(t => t.TokenHash).IsUnique();
+        });
+
+        modelBuilder.Entity<ProcessedChange>(change =>
+        {
+            // The primary key is the idempotency guarantee: the same ChangeId cannot be stored twice.
+            change.HasKey(c => c.ChangeId);
+            change.HasOne<User>().WithMany().HasForeignKey(c => c.UserId);
         });
     }
 }

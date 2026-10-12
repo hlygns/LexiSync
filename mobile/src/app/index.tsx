@@ -1,14 +1,13 @@
 import { count, desc, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { router, Stack, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router, Stack } from 'expo-router';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
 import { db } from '@/db/client';
 import { useExams } from '@/db/exams';
-import { cards, decks, outbox } from '@/db/schema';
-import { getStats, type Stats } from '@/db/stats';
+import { cards, decks, outbox, reviewLogs } from '@/db/schema';
+import { getStats } from '@/db/stats';
 import { addStarterDecks } from '@/starter/starterDecks';
 import { pendingChangeCount, requestSync, type SyncStatus } from '@/sync/engine';
 import { useSyncStatus } from '@/sync/useSync';
@@ -50,13 +49,10 @@ export default function DecksScreen() {
   const pending = outboxRows[0]?.total ?? 0;
   const countByDeck = new Map(cardCounts.map((row) => [row.deckId, row.total]));
 
-  // Recomputed when the screen comes into view (after studying) and when a sync brings new data.
-  const [stats, setStats] = useState<Stats>({ reviewedToday: 0, due: 0, streak: 0 });
-  useFocusEffect(
-    useCallback(() => {
-      setStats(getStats());
-    }, [syncStatus.lastSyncedAt, cardCounts]),
-  );
+  // Subscribing to the review log makes this screen re-render after every review, local or pulled,
+  // so the numbers below are simply recomputed from the local database on each render.
+  useLiveQuery(db.select({ total: count() }).from(reviewLogs));
+  const stats = getStats();
 
   async function confirmSignOut() {
     // Give unsent changes one last chance to reach the server.

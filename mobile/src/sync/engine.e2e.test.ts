@@ -3,9 +3,6 @@
  * talking to the real API. Needs the backend running (docker compose up), so it is not part of
  * "npm test"; run it with "npm run test:e2e".
  */
-import fs from 'fs';
-import path from 'path';
-
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:8080';
 process.env.EXPO_PUBLIC_API_URL = API_URL;
 

@@ -25,10 +25,13 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
     "babel-plugin-inline-import": "^3.0.0",
     "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.31.11",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -38,7 +41,8 @@
     "web": "expo start --web",
     "test": "jest --testPathIgnorePatterns e2e",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "jest e2e --runInBand"
+    "test:e2e": "jest e2e --runInBand",
+    "lint": "expo lint"
   },
   "private": true,
   "jest": {

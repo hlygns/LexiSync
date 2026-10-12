@@ -1,13 +1,12 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { db } from '@/db/client';
 import { deleteDeck } from '@/db/decks';
 import { getDueCards } from '@/db/reviews';
-import { cards, decks } from '@/db/schema';
+import { cards, decks, reviewLogs } from '@/db/schema';
 import { colors, common } from '@/ui/styles';
 
 export default function DeckScreen() {
@@ -24,13 +23,10 @@ export default function DeckScreen() {
   );
   const deck = deckRows[0];
 
-  // Recounted every time the screen comes into view, e.g. when returning from a study session.
-  const [dueCount, setDueCount] = useState(0);
-  useFocusEffect(
-    useCallback(() => {
-      setDueCount(getDueCards(id).length);
-    }, [id, cardRows.length]),
-  );
+  // Subscribing to the review log makes this screen re-render after every review (the card list
+  // above does the same for card changes), so the due count is recomputed on each render.
+  useLiveQuery(db.select({ total: count() }).from(reviewLogs));
+  const dueCount = getDueCards(id).length;
 
   function confirmDelete() {
     Alert.alert('Desteyi sil', `"${deck?.name}" ve içindeki ${cardRows.length} kart silinecek.`, [

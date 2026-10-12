@@ -3,6 +3,7 @@
 
 // The four study buttons on SM-2's 0-5 quality scale.
 export const Grade = { Again: 1, Hard: 3, Good: 4, Easy: 5 } as const;
+// eslint-disable-next-line @typescript-eslint/no-redeclare -- the value and its type share a name on purpose
 export type Grade = (typeof Grade)[keyof typeof Grade];
 
 export type Sm2State = { repetitions: number; intervalDays: number; easeFactor: number };

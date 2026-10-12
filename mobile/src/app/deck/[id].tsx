@@ -1,12 +1,14 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, FlatList, Pressable, Text, View } from 'react-native';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { db } from '@/db/client';
 import { deleteDeck } from '@/db/decks';
+import { getDueCards } from '@/db/reviews';
 import { cards, decks } from '@/db/schema';
-import { common } from '@/ui/styles';
+import { colors, common } from '@/ui/styles';
 
 export default function DeckScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,6 +23,14 @@ export default function DeckScreen() {
     [id],
   );
   const deck = deckRows[0];
+
+  // Recounted every time the screen comes into view, e.g. when returning from a study session.
+  const [dueCount, setDueCount] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setDueCount(getDueCards(id).length);
+    }, [id, cardRows.length]),
+  );
 
   function confirmDelete() {
     Alert.alert('Desteyi sil', `"${deck?.name}" ve içindeki ${cardRows.length} kart silinecek.`, [
@@ -40,6 +50,18 @@ export default function DeckScreen() {
     <View style={common.screen}>
       <Stack.Screen options={{ title: deck?.name ?? '' }} />
 
+      <View style={common.footer}>
+        <Pressable
+          style={[common.button, dueCount === 0 && common.buttonDisabled]}
+          disabled={dueCount === 0}
+          onPress={() => router.push({ pathname: '/study/[deckId]', params: { deckId: id } })}
+        >
+          <Text style={common.buttonText}>
+            {dueCount === 0 ? 'Bugün çalışılacak kart yok' : `Çalış (${dueCount} kart)`}
+          </Text>
+        </Pressable>
+      </View>
+
       <FlatList
         data={cardRows}
         keyExtractor={(card) => card.id}
@@ -57,10 +79,10 @@ export default function DeckScreen() {
 
       <View style={common.footer}>
         <Pressable
-          style={common.button}
+          style={[common.button, styles.secondaryButton]}
           onPress={() => router.push({ pathname: '/card/new', params: { deckId: id } })}
         >
-          <Text style={common.buttonText}>Kart ekle</Text>
+          <Text style={[common.buttonText, styles.secondaryButtonText]}>Kart ekle</Text>
         </Pressable>
         <Pressable onPress={confirmDelete}>
           <Text style={common.dangerText}>Desteyi sil</Text>
@@ -69,3 +91,8 @@ export default function DeckScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  secondaryButton: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.primary },
+  secondaryButtonText: { color: colors.primary },
+});

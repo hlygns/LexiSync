@@ -23,4 +23,9 @@
     <ProjectReference Include="..\..\src\LexiSync.Application\LexiSync.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared with the mobile app's Jest tests. -->
+    <Content Include="..\..\..\shared\sm2-vectors.json" Link="sm2-vectors.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

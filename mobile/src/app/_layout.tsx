@@ -48,6 +48,7 @@ function RootNavigator() {
         <Stack.Screen name="deck/[id]" />
         <Stack.Screen name="card/new" options={{ title: 'Yeni kart' }} />
         <Stack.Screen name="card/[id]" options={{ title: 'Kartı düzenle' }} />
+        <Stack.Screen name="study/[deckId]" options={{ title: 'Çalışma' }} />
       </Stack.Protected>
 
       <Stack.Protected guard={!isSignedIn}>

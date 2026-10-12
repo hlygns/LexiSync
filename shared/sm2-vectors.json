@@ -1,0 +1,323 @@
+[
+  {
+    "name": "first good",
+    "grades": [
+      4
+    ],
+    "expected": {
+      "repetitions": 1,
+      "intervalDays": 1,
+      "easeFactor": 2.5
+    }
+  },
+  {
+    "name": "two goods",
+    "grades": [
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 2,
+      "intervalDays": 6,
+      "easeFactor": 2.5
+    }
+  },
+  {
+    "name": "three goods",
+    "grades": [
+      4,
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 3,
+      "intervalDays": 15,
+      "easeFactor": 2.5
+    }
+  },
+  {
+    "name": "five goods",
+    "grades": [
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 5,
+      "intervalDays": 95,
+      "easeFactor": 2.5
+    }
+  },
+  {
+    "name": "single easy",
+    "grades": [
+      5
+    ],
+    "expected": {
+      "repetitions": 1,
+      "intervalDays": 1,
+      "easeFactor": 2.6
+    }
+  },
+  {
+    "name": "single hard",
+    "grades": [
+      3
+    ],
+    "expected": {
+      "repetitions": 1,
+      "intervalDays": 1,
+      "easeFactor": 2.36
+    }
+  },
+  {
+    "name": "single again",
+    "grades": [
+      1
+    ],
+    "expected": {
+      "repetitions": 0,
+      "intervalDays": 1,
+      "easeFactor": 1.96
+    }
+  },
+  {
+    "name": "three easies",
+    "grades": [
+      5,
+      5,
+      5
+    ],
+    "expected": {
+      "repetitions": 3,
+      "intervalDays": 16,
+      "easeFactor": 2.8000000000000003
+    }
+  },
+  {
+    "name": "eight easies",
+    "grades": [
+      5,
+      5,
+      5,
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "expected": {
+      "repetitions": 8,
+      "intervalDays": 3898,
+      "easeFactor": 3.3000000000000007
+    }
+  },
+  {
+    "name": "hard twice",
+    "grades": [
+      3,
+      3
+    ],
+    "expected": {
+      "repetitions": 2,
+      "intervalDays": 6,
+      "easeFactor": 2.2199999999999998
+    }
+  },
+  {
+    "name": "six hards",
+    "grades": [
+      3,
+      3,
+      3,
+      3,
+      3,
+      3
+    ],
+    "expected": {
+      "repetitions": 6,
+      "intervalDays": 94,
+      "easeFactor": 1.66
+    }
+  },
+  {
+    "name": "good good again",
+    "grades": [
+      4,
+      4,
+      1
+    ],
+    "expected": {
+      "repetitions": 0,
+      "intervalDays": 1,
+      "easeFactor": 1.96
+    }
+  },
+  {
+    "name": "reset then climb",
+    "grades": [
+      4,
+      4,
+      1,
+      4,
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 3,
+      "intervalDays": 12,
+      "easeFactor": 1.96
+    }
+  },
+  {
+    "name": "twenty agains hit the floor",
+    "grades": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "expected": {
+      "repetitions": 0,
+      "intervalDays": 1,
+      "easeFactor": 1.3
+    }
+  },
+  {
+    "name": "floor then recover",
+    "grades": [
+      1,
+      1,
+      1,
+      1,
+      4,
+      4,
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 4,
+      "intervalDays": 10,
+      "easeFactor": 1.3
+    }
+  },
+  {
+    "name": "mixed a",
+    "grades": [
+      4,
+      5,
+      3,
+      4,
+      1,
+      4,
+      5,
+      5,
+      3,
+      4
+    ],
+    "expected": {
+      "repetitions": 5,
+      "intervalDays": 50,
+      "easeFactor": 1.9800000000000002
+    }
+  },
+  {
+    "name": "mixed b",
+    "grades": [
+      5,
+      4,
+      4,
+      3,
+      3,
+      4,
+      5,
+      1,
+      3,
+      4,
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 4,
+      "intervalDays": 17,
+      "easeFactor": 1.74
+    }
+  },
+  {
+    "name": "mixed c",
+    "grades": [
+      3,
+      4,
+      5,
+      4,
+      3,
+      4,
+      5,
+      4,
+      3,
+      4,
+      5,
+      4
+    ],
+    "expected": {
+      "repetitions": 12,
+      "intervalDays": 32749,
+      "easeFactor": 2.38
+    }
+  },
+  {
+    "name": "long good run",
+    "grades": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "expected": {
+      "repetitions": 9,
+      "intervalDays": 3720,
+      "easeFactor": 2.5
+    }
+  },
+  {
+    "name": "alternating easy hard",
+    "grades": [
+      5,
+      3,
+      5,
+      3,
+      5,
+      3,
+      5,
+      3
+    ],
+    "expected": {
+      "repetitions": 8,
+      "intervalDays": 1369,
+      "easeFactor": 2.34
+    }
+  }
+]

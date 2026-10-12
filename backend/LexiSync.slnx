@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LexiSync.Api/LexiSync.Api.csproj" />
+    <Project Path="src/LexiSync.Application/LexiSync.Application.csproj" />
+    <Project Path="src/LexiSync.Domain/LexiSync.Domain.csproj" />
+    <Project Path="src/LexiSync.Infrastructure/LexiSync.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LexiSync.IntegrationTests/LexiSync.IntegrationTests.csproj" />
+    <Project Path="tests/LexiSync.UnitTests/LexiSync.UnitTests.csproj" />
+  </Folder>
+</Solution>

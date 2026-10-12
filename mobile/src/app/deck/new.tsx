@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { createDeck } from '@/db/decks';
-import { EXAMS } from '@/db/exams';
+import { useExams } from '@/db/exams';
 import { colors, common } from '@/ui/styles';
 
 export default function NewDeckScreen() {
+  const exams = useExams();
   const [name, setName] = useState('');
-  const [examId, setExamId] = useState(EXAMS[0].id);
+  const [selectedExamId, setSelectedExamId] = useState<number | null>(null);
+  const examId = selectedExamId ?? exams[0].id;
 
   const canSubmit = name.trim().length > 0;
 
@@ -25,13 +27,13 @@ export default function NewDeckScreen() {
 
       <Text style={common.label}>Sınav</Text>
       <View style={styles.chips}>
-        {EXAMS.map((exam) => {
+        {exams.map((exam) => {
           const selected = exam.id === examId;
           return (
             <Pressable
               key={exam.id}
               style={[styles.chip, selected && styles.chipSelected]}
-              onPress={() => setExamId(exam.id)}
+              onPress={() => setSelectedExamId(exam.id)}
             >
               <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{exam.name}</Text>
             </Pressable>

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { postJson } from '@/api/client';
-import { clearSession, loadSession, saveSession, type Session } from '@/auth/session';
+import { clearSession, loadSession, saveSession, subscribeSession, type Session } from '@/auth/session';
+import { claimLocalData, wipeLocalData } from '@/sync/engine';
 
 type AuthResponse = {
   accessToken: string;
@@ -15,6 +16,7 @@ type AuthContextValue = {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
+  // Also removes this account's data from the device.
   signOut: () => Promise<void>;
 };
 
@@ -24,18 +26,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On app start the session comes from the device, not the server: this works offline.
   useEffect(() => {
-    loadSession()
-      .then(setSession)
-      .finally(() => setIsLoading(false));
+    // Follows every change, including the sync engine signing the user out when the refresh token expires.
+    const unsubscribe = subscribeSession(setSession);
+    // On app start the session comes from the device, not the server: this works offline.
+    loadSession().finally(() => setIsLoading(false));
+    return unsubscribe;
   }, []);
 
   async function authenticate(path: string, email: string, password: string) {
-    const response = await postJson<AuthResponse>(path, { email, password });
-    const next: Session = { email: email.trim().toLowerCase(), ...response };
-    await saveSession(next);
-    setSession(next);
+    const normalizedEmail = email.trim().toLowerCase();
+    const response = await postJson<AuthResponse>(path, { email: normalizedEmail, password });
+    claimLocalData(normalizedEmail);
+    await saveSession({ email: normalizedEmail, ...response });
   }
 
   const value: AuthContextValue = {
@@ -44,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn: (email, password) => authenticate('/auth/login', email, password),
     register: (email, password) => authenticate('/auth/register', email, password),
     signOut: async () => {
+      wipeLocalData();
       await clearSession();
-      setSession(null);
     },
   };
 

@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { db } from '@/db/client';
+import { useAutoSync } from '@/sync/useSync';
 import migrations from '../../drizzle/migrations';
 
 export default function RootLayout() {
@@ -32,6 +33,9 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { session, isLoading } = useAuth();
+
+  // Syncing starts when a session exists and stops when it is gone.
+  useAutoSync(session !== null);
 
   // Render nothing until we know whether a session exists, to avoid flashing the sign-in screen.
   if (isLoading) {

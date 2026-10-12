@@ -41,6 +41,13 @@ export function enqueueReviewLog(
   enqueue(tx, 'reviewLog', log);
 }
 
+export function enqueueQuizResult(
+  tx: Tx,
+  result: { id: string; deckId: string; unitIndex: number; score: number; total: number; completedAt: string; deviceId: string },
+): void {
+  enqueue(tx, 'quizResult', result);
+}
+
 // The sync engine subscribes here to learn that there is something new to push.
 type Listener = () => void;
 const listeners = new Set<Listener>();

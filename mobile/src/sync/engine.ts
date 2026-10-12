@@ -6,7 +6,7 @@ import { authorizedRequest } from '@/auth/tokens';
 import { db, type Tx } from '@/db/client';
 import { getMeta, setMeta } from '@/db/meta';
 import { rebuildReviewState } from '@/db/reviews';
-import { cards, decks, exams, outbox, reviewLogs, reviewStates, syncMeta } from '@/db/schema';
+import { cards, decks, exams, outbox, quizResults, reviewLogs, reviewStates, syncMeta } from '@/db/schema';
 import { normalizeDate, shouldApplyRemote } from '@/sync/merge';
 import { enqueueCard, enqueueDeck } from '@/sync/outbox';
 
@@ -23,7 +23,22 @@ type RemoteCard = {
   serverVersion: number;
 };
 type RemoteReviewLog = { id: string; cardId: string; grade: number; reviewedAt: string; deviceId: string };
-type PullResponse = { latestVersion: number; decks: RemoteDeck[]; cards: RemoteCard[]; reviewLogs: RemoteReviewLog[] };
+type RemoteQuizResult = {
+  id: string;
+  deckId: string;
+  unitIndex: number;
+  score: number;
+  total: number;
+  completedAt: string;
+  deviceId: string;
+};
+type PullResponse = {
+  latestVersion: number;
+  decks: RemoteDeck[];
+  cards: RemoteCard[];
+  reviewLogs: RemoteReviewLog[];
+  quizResults: RemoteQuizResult[];
+};
 type PushResponse = { results: { changeId: string; status: string; reason: string | null }[] };
 
 const PUSH_BATCH_SIZE = 100;
@@ -208,6 +223,14 @@ function applyPull(tx: Tx, response: PullResponse): void {
 
   // Reviews made on another device change when a card is due here.
   cardsWithNewLogs.forEach((cardId) => rebuildReviewState(tx, cardId));
+
+  // Unit tests passed on another device unlock the same units here. Append-only, like logs.
+  for (const remote of response.quizResults ?? []) {
+    tx.insert(quizResults)
+      .values({ ...remote, completedAt: normalizeDate(remote.completedAt) })
+      .onConflictDoNothing()
+      .run();
+  }
 }
 
 // Reference data, public endpoint. Failure is not a sync failure: the previous copy keeps working.
@@ -234,6 +257,7 @@ export function pendingChangeCount(): number {
 export function wipeLocalData(): void {
   db.transaction((tx) => {
     tx.delete(outbox).run();
+    tx.delete(quizResults).run();
     tx.delete(reviewStates).run();
     tx.delete(reviewLogs).run();
     tx.delete(cards).run();

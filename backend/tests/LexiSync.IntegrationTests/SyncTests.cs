@@ -228,6 +228,39 @@ public class SyncTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Unit_test_result_from_one_device_unlocks_the_unit_on_the_other()
+    {
+        var (phone, tablet) = await TwoDevicesAsync();
+        var deck = await phone.CreateDeckAsync();
+        var result = new QuizResultDto(Guid.CreateVersion7(), deck.Id, UnitIndex: 0, Score: 18, Total: 20, DateTimeOffset.UtcNow, phone.DeviceId);
+
+        var first = await phone.PushAsync("quizResult", result);
+        var again = await phone.PushAsync("quizResult", result);
+        var pulled = await tablet.PullAsync();
+
+        Assert.Equal(PushStatus.Applied, first.Status);
+        Assert.Equal(PushStatus.Ignored, again.Status);
+        var pulledResult = Assert.Single(pulled.QuizResults);
+        Assert.Equal((deck.Id, 0, 18, 20), (pulledResult.DeckId, pulledResult.UnitIndex, pulledResult.Score, pulledResult.Total));
+    }
+
+    [Theory]
+    [InlineData(-1, 10, 20)]
+    [InlineData(0, 21, 20)]
+    [InlineData(0, -1, 20)]
+    [InlineData(0, 0, 0)]
+    public async Task Unit_test_result_with_impossible_numbers_is_rejected(int unitIndex, int score, int total)
+    {
+        var phone = await TestDevice.RegisterAsync(factory);
+        var deck = await phone.CreateDeckAsync();
+
+        var result = await phone.PushAsync("quizResult", new QuizResultDto(Guid.CreateVersion7(), deck.Id, unitIndex, score, total, DateTimeOffset.UtcNow, phone.DeviceId));
+
+        Assert.Equal(PushStatus.Rejected, result.Status);
+        Assert.Empty((await phone.PullAsync()).QuizResults);
+    }
+
+    [Fact]
     public async Task One_user_cannot_see_or_change_another_users_data()
     {
         var owner = await TestDevice.RegisterAsync(factory);
@@ -240,10 +273,11 @@ public class SyncTests(ApiFactory factory)
         var overwriteDeck = await stranger.PushAsync("deck", deck with { Name = "ele geçirildi", UpdatedAt = deck.UpdatedAt.AddHours(1) });
         var addToDeck = await stranger.PushAsync("card", new CardDto(Guid.CreateVersion7(), deck.Id, "x", "y", null, [], DateTimeOffset.UtcNow, null));
         var review = await stranger.PushAsync("reviewLog", stranger.NewReview(card.Id, 4, DateTimeOffset.UtcNow));
+        var quiz = await stranger.PushAsync("quizResult", new QuizResultDto(Guid.CreateVersion7(), deck.Id, 0, 20, 20, DateTimeOffset.UtcNow, stranger.DeviceId));
 
         Assert.Empty(strangerPull.Decks);
         Assert.Empty(strangerPull.Cards);
-        Assert.All(new[] { overwriteCard, overwriteDeck, addToDeck, review }, r => Assert.Equal(PushStatus.Rejected, r.Status));
+        Assert.All(new[] { overwriteCard, overwriteDeck, addToDeck, review, quiz }, r => Assert.Equal(PushStatus.Rejected, r.Status));
         var ownerPull = await owner.PullAsync();
         Assert.Equal("özel", Assert.Single(ownerPull.Cards).Meaning);
         Assert.Equal(deck.Name, Assert.Single(ownerPull.Decks).Name);

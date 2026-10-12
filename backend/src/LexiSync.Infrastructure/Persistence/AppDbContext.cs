@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ReviewLog> ReviewLogs => Set<ReviewLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ProcessedChange> ProcessedChanges => Set<ProcessedChange>();
+    public DbSet<QuizResult> QuizResults => Set<QuizResult>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +73,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             log.HasOne<User>().WithMany().HasForeignKey(l => l.UserId);
             log.HasOne<Card>().WithMany().HasForeignKey(l => l.CardId);
             log.HasIndex(l => new { l.UserId, l.ServerVersion });
+        });
+
+        modelBuilder.Entity<QuizResult>(result =>
+        {
+            result.HasOne<User>().WithMany().HasForeignKey(r => r.UserId);
+            result.HasOne<Deck>().WithMany().HasForeignKey(r => r.DeckId);
+            result.HasIndex(r => new { r.UserId, r.ServerVersion });
         });
 
         modelBuilder.Entity<RefreshToken>(token =>

@@ -179,6 +179,45 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
                     b.ToTable("ProcessedChanges");
                 });
 
+            modelBuilder.Entity("LexiSync.Domain.Entities.QuizResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DeckId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ServerVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UnitIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeckId");
+
+                    b.HasIndex("UserId", "ServerVersion");
+
+                    b.ToTable("QuizResults");
+                });
+
             modelBuilder.Entity("LexiSync.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -321,6 +360,21 @@ namespace LexiSync.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("LexiSync.Domain.Entities.ProcessedChange", b =>
                 {
+                    b.HasOne("LexiSync.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LexiSync.Domain.Entities.QuizResult", b =>
+                {
+                    b.HasOne("LexiSync.Domain.Entities.Deck", null)
+                        .WithMany()
+                        .HasForeignKey("DeckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("LexiSync.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")

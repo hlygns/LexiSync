@@ -85,6 +85,8 @@ function loadModules() {
     decks: require('@/db/decks') as typeof import('@/db/decks'),
     cards: require('@/db/cards') as typeof import('@/db/cards'),
     reviews: require('@/db/reviews') as typeof import('@/db/reviews'),
+    units: require('@/db/units') as typeof import('@/db/units'),
+    starter: require('@/starter/starterDecks') as typeof import('@/starter/starterDecks'),
     schema: require('@/db/schema') as typeof import('@/db/schema'),
     db: (require('@/db/client') as typeof import('@/db/client')).db,
   };
@@ -328,6 +330,38 @@ test('data left on the device by another account is not sent to the new account'
   await signIn(second, otherEmail, 'login');
   await second.engine.requestSync();
   expect(second.db.select().from(second.schema.decks).all()).toEqual([]);
+});
+
+test('a unit test passed on the phone unlocks the next unit on the tablet too', async () => {
+  const { phone, tablet } = await twoDevices();
+  expect(phone.starter.addStarterDecks()).toMatchObject({ added: 200, updated: 0 });
+  // Running it again must not duplicate anything.
+  expect(phone.starter.addStarterDecks()).toMatchObject({ added: 0, updated: 0 });
+
+  const deck = phone.db.select().from(phone.schema.decks).all().find((d) => d.name === 'YDS — Akademik fiiller')!;
+  const before = phone.units.getUnits(deck.id);
+  expect(before.map((unit) => unit.cards.length)).toEqual([20, 20, 20, 20]);
+  expect(before.map((unit) => unit.status)).toEqual(['current', 'locked', 'locked', 'locked']);
+
+  // A failed attempt (13 of 20) changes nothing; 14 of 20 passes.
+  const answers = (correct: number) => before[0].cards.map((card, i) => ({ cardId: card.id, correct: i < correct }));
+  expect(phone.units.saveQuizResult(deck.id, 0, answers(13))).toBe(false);
+  expect(phone.units.getUnits(deck.id)[1].status).toBe('locked');
+  expect(phone.db.select().from(phone.schema.reviewLogs).all()).toHaveLength(0);
+  expect(phone.units.saveQuizResult(deck.id, 0, answers(14))).toBe(true);
+
+  await phone.engine.requestSync();
+  await tablet.engine.requestSync();
+
+  for (const device of [phone, tablet]) {
+    const units = device.units.getUnits(deck.id);
+    expect(units.map((unit) => unit.status)).toEqual(['passed', 'current', 'locked', 'locked']);
+    expect(units[0].best).toEqual({ score: 14, total: 20 });
+    // Passing the test was the first review of all 20 words, so they now have a schedule.
+    expect(device.db.select().from(device.schema.reviewStates).all()).toHaveLength(20);
+  }
+  expect(tablet.db.select().from(tablet.schema.cards).all()).toHaveLength(200);
+  expect(outboxSize(phone)).toBe(0);
 });
 
 test('the exam list is copied from the server', async () => {

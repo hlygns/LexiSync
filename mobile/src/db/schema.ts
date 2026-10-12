@@ -59,7 +59,23 @@ export const reviewStates = sqliteTable(
   (table) => [index('review_states_due_at_idx').on(table.dueAt)],
 );
 
-export type OutboxEntity = 'deck' | 'card' | 'reviewLog';
+// One finished unit test. Append-only and synced, like review_logs.
+// A unit is the n-th group of 20 cards in a deck; passing its test unlocks the next unit.
+export const quizResults = sqliteTable(
+  'quiz_results',
+  {
+    id: text('id').primaryKey(),
+    deckId: text('deck_id').notNull(),
+    unitIndex: integer('unit_index').notNull(),
+    score: integer('score').notNull(),
+    total: integer('total').notNull(),
+    completedAt: text('completed_at').notNull(),
+    deviceId: text('device_id').notNull(),
+  },
+  (table) => [index('quiz_results_deck_id_idx').on(table.deckId)],
+);
+
+export type OutboxEntity = 'deck' | 'card' | 'reviewLog' | 'quizResult';
 
 // Changes waiting to be sent to the server. A row is written in the same transaction as the change itself.
 export const outbox = sqliteTable('outbox', {

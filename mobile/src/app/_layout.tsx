@@ -6,6 +6,7 @@ import { Text, View } from 'react-native';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { db } from '@/db/client';
 import { useAutoSync } from '@/sync/useSync';
+import { colors } from '@/ui/styles';
 import migrations from '../../drizzle/migrations';
 
 export default function RootLayout() {
@@ -25,7 +26,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <RootNavigator />
     </AuthProvider>
   );
@@ -45,14 +46,25 @@ function RootNavigator() {
   const isSignedIn = session !== null;
 
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        // Every screen gets the same coloured header.
+        headerStyle: { backgroundColor: colors.primary },
+        headerTintColor: colors.onPrimary,
+        headerTitleStyle: { fontWeight: '700' },
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <Stack.Protected guard={isSignedIn}>
-        <Stack.Screen name="index" options={{ title: 'Destelerim' }} />
+        <Stack.Screen name="index" options={{ title: 'LexiSync' }} />
         <Stack.Screen name="deck/new" options={{ title: 'Yeni deste' }} />
         <Stack.Screen name="deck/[id]" />
+        <Stack.Screen name="cards/[deckId]" options={{ title: 'Kartlar' }} />
         <Stack.Screen name="card/new" options={{ title: 'Yeni kart' }} />
         <Stack.Screen name="card/[id]" options={{ title: 'Kartı düzenle' }} />
-        <Stack.Screen name="study/[deckId]" options={{ title: 'Çalışma' }} />
+        <Stack.Screen name="unit/[deckId]" />
+        <Stack.Screen name="quiz/[deckId]" />
+        <Stack.Screen name="study/[deckId]" options={{ title: 'Tekrar' }} />
       </Stack.Protected>
 
       <Stack.Protected guard={!isSignedIn}>

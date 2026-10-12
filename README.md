@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/hlygns/LexiSync/actions/workflows/ci.yml/badge.svg)](https://github.com/hlygns/LexiSync/actions/workflows/ci.yml)
 
-YDS ve YÖKDİL için aralıklı tekrar (spaced repetition) tabanlı, **offline-first** mobil kelime uygulaması.
+YDS için aralıklı tekrar (spaced repetition) tabanlı, **offline-first** mobil kelime uygulaması.
 İnternet olmadan tam çalışır; bağlantı gelince sunucuyla kendiliğinden senkronize olur.
 
 **Teknolojiler:** React Native (Expo) · TypeScript · SQLite (Drizzle) · ASP.NET Core (.NET 10) · EF Core · PostgreSQL · Docker · GitHub Actions
@@ -11,12 +11,14 @@ YDS ve YÖKDİL için aralıklı tekrar (spaced repetition) tabanlı, **offline-
 
 - Kayıt ve giriş (JWT + tek kullanımlık refresh token); oturum cihazda şifreli saklanır
 - Deste ve kart oluşturma, düzenleme, silme
-- Çalışma ekranı: kartı çevir, "Bilmiyorum / Zor / İyi / Kolay" ile puanla
+- 20 kelimelik üniteler: önce kelime, sonra Türkçesi, sonra iki örnek cümle
+- Her ünitenin sonunda 20 soruluk test (anlam seçme ve boşluk doldurma); %70 ile geçilmeden sonraki ünite açılmaz
+- Öğrenilen kelimelerin tekrarı: "Bilmiyorum / Zor / İyi / Kolay" ile puanla
 - SM-2 algoritması ile bir sonraki tekrar tarihinin hesaplanması
 - Tamamen çevrimdışı çalışma ve otomatik senkronizasyon
 - Birden fazla cihaz: aynı hesapla telefonda ve tablette çalışılabilir
 - Bugün çalışılan, bekleyen kart ve gün serisi istatistikleri
-- Örnek YDS ve YÖKDİL desteleri
+- 200 hazır YDS kelimesi (fiiller, sıfatlar, isimler, bağlaçlar), her biri iki örnek cümleyle
 
 ## Mimari
 
@@ -67,6 +69,7 @@ Backend dört katmandır ve bağımlılıklar hep içe doğrudur:
 | İki cihazda aynı kart çalışıldı | Çakışma yok: tekrar kayıtları (`ReviewLog`) sadece eklenir, ikisi de saklanır |
 | Kartın tekrar durumu (`ReviewState`) | Senkronize edilmez; her yerde kayıtlar zaman sırasıyla SM-2'den geçirilerek yeniden hesaplanır |
 | Deste silindi | İçindeki kartlar da silinir; o sırada başka cihazda eklenen kart da silinmiş olarak saklanır |
+| Ünite testi sonuçları (`QuizResult`) | Tekrar kayıtları gibi sadece eklenir; bir cihazda geçilen test diğerinde de üniteyi açar |
 
 ### Idempotency
 
@@ -143,9 +146,9 @@ bilgisayarın yerel ağdaki IP adresi yazılmalıdır.
 | Paket | Sayı | Ne test eder |
 |---|---|---|
 | Backend unit (xUnit) | 42 | SM-2, çakışma kuralı |
-| Backend entegrasyon (xUnit + Testcontainers) | 24 | Gerçek PostgreSQL üzerinde kimlik, push/pull, idempotency, çakışma, kullanıcı izolasyonu |
-| Mobil unit (Jest) | 43 | SM-2, birleştirme kuralı, gün serisi |
-| Mobil uçtan uca (Jest) | 9 | Gerçek senkronizasyon motoru, iki sanal cihaz, çalışan API |
+| Backend entegrasyon (xUnit + Testcontainers) | 29 | Gerçek PostgreSQL üzerinde kimlik, push/pull, idempotency, çakışma, kullanıcı izolasyonu |
+| Mobil unit (Jest) | 65 | SM-2, birleştirme kuralı, gün serisi, test sorusu üretimi, hazır kelime verisi |
+| Mobil uçtan uca (Jest) | 10 | Gerçek senkronizasyon motoru, iki sanal cihaz, çalışan API |
 
 ```bash
 dotnet test backend/LexiSync.slnx      # Docker çalışıyor olmalı
@@ -199,6 +202,8 @@ mobile/
   src/db/     SQLite şeması ve sorgular
   src/sync/   Outbox, push/pull motoru
   src/srs/    SM-2 (TypeScript)
+  src/quiz/   Ünite testi sorularının üretimi
+  src/starter/ Hazır YDS kelimeleri
   drizzle/    SQLite migration'ları
 shared/       İki tarafın ortak SM-2 test vektörleri
 docker-compose.yml

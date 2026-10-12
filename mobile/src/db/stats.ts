@@ -1,4 +1,4 @@
-import { and, count, eq, gte, isNull, lte, or } from 'drizzle-orm';
+import { and, count, eq, gte, isNull, lte } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { endOfToday } from '@/db/reviews';
@@ -14,17 +14,17 @@ export function getStats(now: Date = new Date()): Stats {
   const reviewedToday =
     db.select({ total: count() }).from(reviewLogs).where(gte(reviewLogs.reviewedAt, startOfToday)).get()?.total ?? 0;
 
-  // Due in any deck that still exists: never reviewed, or due today or earlier.
+  // Learned words that are due today or earlier, in any deck that still exists.
   const due = db
     .select({ id: cards.id })
     .from(cards)
     .innerJoin(decks, eq(decks.id, cards.deckId))
-    .leftJoin(reviewStates, eq(reviewStates.cardId, cards.id))
+    .innerJoin(reviewStates, eq(reviewStates.cardId, cards.id))
     .where(
       and(
         isNull(cards.deletedAt),
         isNull(decks.deletedAt),
-        or(isNull(reviewStates.cardId), lte(reviewStates.dueAt, endOfToday(now).toISOString())),
+        lte(reviewStates.dueAt, endOfToday(now).toISOString()),
       ),
     )
     .all().length;

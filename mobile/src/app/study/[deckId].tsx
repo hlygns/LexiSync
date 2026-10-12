@@ -1,18 +1,19 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getDueCards, recordReview, toSm2State } from '@/db/reviews';
 import { Grade, review } from '@/srs/sm2';
 import { colors, common } from '@/ui/styles';
 
 const BUTTONS: { grade: Grade; label: string; color: string }[] = [
-  { grade: Grade.Again, label: 'Bilmiyorum', color: '#b00020' },
-  { grade: Grade.Hard, label: 'Zor', color: '#b45309' },
-  { grade: Grade.Good, label: 'İyi', color: '#15803d' },
-  { grade: Grade.Easy, label: 'Kolay', color: '#2563eb' },
+  { grade: Grade.Again, label: 'Bilmiyorum', color: colors.danger },
+  { grade: Grade.Hard, label: 'Zor', color: '#D9822B' },
+  { grade: Grade.Good, label: 'İyi', color: colors.success },
+  { grade: Grade.Easy, label: 'Kolay', color: colors.primary },
 ];
 
+// Repeating words that were learned earlier and are due again today (SM-2).
 export default function StudyScreen() {
   const { deckId } = useLocalSearchParams<{ deckId: string }>();
 
@@ -26,8 +27,8 @@ export default function StudyScreen() {
   if (!current) {
     return (
       <View style={[common.screen, styles.center]}>
-        <Text style={styles.doneTitle}>{queue.length === 0 ? 'Bugün çalışılacak kart yok' : 'Bugünlük bu kadar'}</Text>
-        {queue.length > 0 && <Text style={styles.doneSubtitle}>{queue.length} kart çalıştın.</Text>}
+        <Text style={styles.doneTitle}>{queue.length === 0 ? 'Bugün tekrar edilecek kelime yok' : 'Bugünlük bu kadar'}</Text>
+        {queue.length > 0 && <Text style={styles.doneSubtitle}>{queue.length} kelime tekrar ettin.</Text>}
         <Pressable style={[common.button, styles.doneButton]} onPress={() => router.back()}>
           <Text style={common.buttonText}>Desteye dön</Text>
         </Pressable>
@@ -42,24 +43,38 @@ export default function StudyScreen() {
   }
 
   const sm2State = toSm2State(current.state);
+  const examples = (current.card.example ?? '').split('\n').filter((line) => line.trim().length > 0);
 
   return (
     <View style={common.screen}>
-      <Text style={styles.progress}>
-        {position + 1} / {queue.length}
-      </Text>
+      <View style={styles.progress}>
+        <View style={common.progressTrack}>
+          <View style={[common.progressFill, { width: `${(position / queue.length) * 100}%` }]} />
+        </View>
+        <Text style={styles.progressText}>
+          {position + 1} / {queue.length}
+        </Text>
+      </View>
 
-      <Pressable style={styles.card} onPress={() => setIsFlipped(true)}>
-        <Text style={styles.term}>{current.card.term}</Text>
-        {isFlipped ? (
-          <>
-            <Text style={styles.meaning}>{current.card.meaning}</Text>
-            {current.card.example && <Text style={styles.example}>{current.card.example}</Text>}
-          </>
-        ) : (
-          <Text style={styles.hint}>Anlamı görmek için dokun</Text>
-        )}
-      </Pressable>
+      <ScrollView contentContainerStyle={styles.cardArea}>
+        <Pressable style={styles.card} onPress={() => setIsFlipped(true)}>
+          <Text style={styles.term}>{current.card.term}</Text>
+          {isFlipped ? (
+            <>
+              <View style={styles.meaningBox}>
+                <Text style={styles.meaning}>{current.card.meaning}</Text>
+              </View>
+              {examples.map((example, index) => (
+                <Text key={index} style={styles.example}>
+                  {example}
+                </Text>
+              ))}
+            </>
+          ) : (
+            <Text style={styles.hint}>Anlamı görmek için dokun</Text>
+          )}
+        </Pressable>
+      </ScrollView>
 
       {isFlipped && (
         <View style={styles.buttons}>
@@ -82,26 +97,28 @@ export default function StudyScreen() {
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
-  doneTitle: { fontSize: 22, fontWeight: '600', color: colors.text, textAlign: 'center' },
+  doneTitle: { fontSize: 22, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   doneSubtitle: { fontSize: 16, color: colors.muted, marginTop: 8 },
   doneButton: { marginTop: 32, alignSelf: 'stretch' },
-  progress: { textAlign: 'center', color: colors.muted, marginTop: 12 },
+  progress: { paddingHorizontal: 16, paddingTop: 16 },
+  progressText: { textAlign: 'center', color: colors.muted, marginTop: 8, fontSize: 13 },
+  cardArea: { padding: 16, flexGrow: 1, justifyContent: 'center' },
   card: {
-    flex: 1,
-    margin: 16,
-    padding: 24,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
+    padding: 24,
+    minHeight: 280,
     justifyContent: 'center',
   },
-  term: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  meaning: { fontSize: 22, color: colors.text, textAlign: 'center', marginTop: 24 },
-  example: { fontSize: 16, color: colors.muted, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
-  hint: { fontSize: 14, color: colors.muted, marginTop: 24 },
+  term: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  meaningBox: { backgroundColor: colors.pinkSoft, borderRadius: 12, padding: 14, marginTop: 20 },
+  meaning: { fontSize: 20, fontWeight: '600', color: colors.text, textAlign: 'center' },
+  example: { fontSize: 16, color: colors.text, textAlign: 'center', marginTop: 14, lineHeight: 22, fontStyle: 'italic' },
+  hint: { fontSize: 14, color: colors.muted, marginTop: 24, textAlign: 'center' },
   buttons: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 24 },
-  gradeButton: { flex: 1, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-  gradeLabel: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  gradeInterval: { color: '#fff', fontSize: 12, marginTop: 2, opacity: 0.9 },
+  gradeButton: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  gradeLabel: { color: colors.onPrimary, fontSize: 13, fontWeight: '700' },
+  gradeInterval: { color: colors.onPrimary, fontSize: 12, marginTop: 2, opacity: 0.9 },
 });

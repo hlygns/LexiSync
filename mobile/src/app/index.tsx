@@ -5,9 +5,9 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native
 
 import { useAuth } from '@/auth/AuthContext';
 import { db } from '@/db/client';
-import { useExams } from '@/db/exams';
-import { cards, decks, outbox, reviewLogs } from '@/db/schema';
+import { cards, decks, outbox, quizResults, reviewLogs } from '@/db/schema';
 import { getStats } from '@/db/stats';
+import { getUnits } from '@/db/units';
 import { addStarterDecks } from '@/starter/starterDecks';
 import { pendingChangeCount, requestSync, type SyncStatus } from '@/sync/engine';
 import { useSyncStatus } from '@/sync/useSync';
@@ -31,28 +31,30 @@ function syncLabel(status: SyncStatus, pending: number): string {
 
 export default function DecksScreen() {
   const { signOut } = useAuth();
-  const exams = useExams();
   const syncStatus = useSyncStatus();
 
-  // Live queries: the list re-renders by itself whenever the table changes, including after a pull.
+  // Live queries: the screen re-renders by itself whenever one of these tables changes,
+  // including after a pull. Everything below is then recomputed from the local database.
   const { data: deckRows } = useLiveQuery(
     db.select().from(decks).where(isNull(decks.deletedAt)).orderBy(desc(decks.id)),
   );
-  const { data: cardCounts } = useLiveQuery(
-    db
-      .select({ deckId: cards.deckId, total: count() })
-      .from(cards)
-      .where(isNull(cards.deletedAt))
-      .groupBy(cards.deckId),
-  );
+  useLiveQuery(db.select({ total: count() }).from(cards));
+  useLiveQuery(db.select({ total: count() }).from(reviewLogs));
+  useLiveQuery(db.select({ total: count() }).from(quizResults));
   const { data: outboxRows } = useLiveQuery(db.select({ total: count() }).from(outbox));
   const pending = outboxRows[0]?.total ?? 0;
-  const countByDeck = new Map(cardCounts.map((row) => [row.deckId, row.total]));
 
-  // Subscribing to the review log makes this screen re-render after every review, local or pulled,
-  // so the numbers below are simply recomputed from the local database on each render.
-  useLiveQuery(db.select({ total: count() }).from(reviewLogs));
   const stats = getStats();
+
+  function loadStarterDecks() {
+    const { added, updated } = addStarterDecks();
+    Alert.alert(
+      'Hazır YDS kelimeleri',
+      added + updated === 0
+        ? 'Destelerin zaten güncel.'
+        : `${added} yeni kelime eklendi, ${updated} kelimeye örnek cümle eklendi.`,
+    );
+  }
 
   async function confirmSignOut() {
     // Give unsent changes one last chance to reach the server.
@@ -78,52 +80,66 @@ export default function DecksScreen() {
         options={{
           headerRight: () => (
             <Pressable onPress={confirmSignOut} hitSlop={12}>
-              <Text style={{ color: colors.primary, fontSize: 16 }}>Çıkış</Text>
+              <Text style={styles.headerAction}>Çıkış</Text>
             </Pressable>
           ),
         }}
       />
 
-      <View style={styles.stats}>
-        <StatTile value={stats.reviewedToday} label="Bugün çalışılan" />
-        <StatTile value={stats.due} label="Bekleyen" />
-        <StatTile value={stats.streak} label="Gün seri" />
-      </View>
-
-      <Pressable onPress={() => void requestSync()}>
-        <Text style={styles.syncStatus}>{syncLabel(syncStatus, pending)}</Text>
-      </Pressable>
-
       <FlatList
         data={deckRows}
         keyExtractor={(deck) => deck.id}
-        ListEmptyComponent={
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
           <View>
-            <Text style={common.empty}>Henüz desten yok. Kendi desteni oluştur ya da örnek destelerle başla.</Text>
-            <Pressable onPress={addStarterDecks}>
-              <Text style={styles.starterLink}>Örnek YDS ve YÖKDİL destelerini ekle</Text>
+            <View style={styles.stats}>
+              <StatTile value={stats.reviewedToday} label="Bugün çalışılan" />
+              <StatTile value={stats.due} label="Tekrar bekleyen" />
+              <StatTile value={stats.streak} label="Gün seri" />
+            </View>
+            <Pressable onPress={() => void requestSync()}>
+              <Text style={styles.syncStatus}>{syncLabel(syncStatus, pending)}</Text>
             </Pressable>
+            <Text style={common.sectionTitle}>Destelerim</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            style={common.row}
-            onPress={() => router.push({ pathname: '/deck/[id]', params: { id: item.id } })}
-          >
-            <Text style={common.rowTitle}>{item.name}</Text>
-            <Text style={common.rowSubtitle}>
-              {exams.find((exam) => exam.id === item.examId)?.name ?? ''} · {countByDeck.get(item.id) ?? 0} kart
-            </Text>
+        ListEmptyComponent={
+          <Text style={common.empty}>
+            Henüz desten yok. Aşağıdan hazır YDS kelimelerini ekle ya da + ile kendi desteni oluştur.
+          </Text>
+        }
+        ListFooterComponent={
+          <Pressable onPress={loadStarterDecks}>
+            <Text style={styles.starterLink}>Hazır YDS kelimelerini ekle / güncelle</Text>
           </Pressable>
-        )}
+        }
+        renderItem={({ item }) => <DeckCard id={item.id} name={item.name} />}
       />
 
-      <View style={common.footer}>
-        <Pressable style={common.button} onPress={() => router.push('/deck/new')}>
-          <Text style={common.buttonText}>Yeni deste</Text>
-        </Pressable>
-      </View>
+      {/* Floating "+" button: new deck. */}
+      <Pressable style={styles.fab} onPress={() => router.push('/deck/new')} accessibilityLabel="Yeni deste">
+        <Text style={styles.fabPlus}>+</Text>
+      </Pressable>
     </View>
+  );
+}
+
+function DeckCard({ id, name }: { id: string; name: string }) {
+  const units = getUnits(id);
+  const passed = units.filter((unit) => unit.status === 'passed').length;
+  const words = units.reduce((total, unit) => total + unit.cards.length, 0);
+  const progress = units.length === 0 ? 0 : passed / units.length;
+
+  return (
+    <Pressable style={common.card} onPress={() => router.push({ pathname: '/deck/[id]', params: { id } })}>
+      <Text style={common.rowTitle}>{name}</Text>
+      <Text style={common.rowSubtitle}>
+        {words} kelime · {passed}/{units.length} ünite tamamlandı
+      </Text>
+      <View style={[common.progressTrack, styles.deckProgress]}>
+        <View style={[common.progressFill, { width: `${progress * 100}%` }]} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -137,10 +153,30 @@ function StatTile({ value, label }: { value: number; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  headerAction: { color: colors.onPrimary, fontSize: 16, fontWeight: '600' },
+  list: { paddingBottom: 96 },
   stats: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 16 },
-  tile: { flex: 1, borderWidth: 1, borderColor: '#eee', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  tileValue: { fontSize: 24, fontWeight: '700', color: colors.text },
+  tile: { flex: 1, backgroundColor: colors.pinkSoft, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  tileValue: { fontSize: 26, fontWeight: '800', color: colors.primary },
   tileLabel: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  syncStatus: { fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 10 },
-  starterLink: { color: colors.primary, fontSize: 16, textAlign: 'center', marginTop: 20 },
+  syncStatus: { fontSize: 13, color: colors.muted, textAlign: 'center', paddingVertical: 12 },
+  deckProgress: { marginTop: 12 },
+  starterLink: { color: colors.primary, fontSize: 15, fontWeight: '600', textAlign: 'center', padding: 16 },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 28,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: colors.primaryDark,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  fabPlus: { color: colors.onPrimary, fontSize: 32, lineHeight: 34, fontWeight: '400' },
 });

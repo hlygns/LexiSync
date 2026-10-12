@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { colors } from '@/ui/styles';
 
 type Mode = 'signIn' | 'register';
 
@@ -74,7 +75,7 @@ export default function SignInScreen() {
 
         <Pressable style={[styles.button, !canSubmit && styles.buttonDisabled]} onPress={submit} disabled={!canSubmit}>
           {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.buttonText}>{mode === 'signIn' ? 'Giriş yap' : 'Kayıt ol'}</Text>
           )}
@@ -96,14 +97,23 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#fff' },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, justifyContent: 'center', padding: 24 },
-  title: { fontSize: 32, fontWeight: '700', textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#555', textAlign: 'center', marginTop: 4, marginBottom: 32 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12 },
-  error: { color: '#b00020', marginBottom: 12 },
-  button: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 4 },
+  title: { fontSize: 36, fontWeight: '800', textAlign: 'center', color: colors.primary },
+  subtitle: { fontSize: 16, color: colors.muted, textAlign: 'center', marginTop: 4, marginBottom: 32 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text,
+    marginBottom: 12,
+  },
+  error: { color: colors.danger, marginBottom: 12 },
+  button: { backgroundColor: colors.primary, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4 },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  link: { color: '#2563eb', textAlign: 'center', marginTop: 20 },
+  buttonText: { color: colors.onPrimary, fontSize: 16, fontWeight: '700' },
+  link: { color: colors.primary, textAlign: 'center', marginTop: 20 },
 });

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte } from 'drizzle-orm';
 
 import { db, type Tx } from '@/db/client';
 import { getDeviceId } from '@/db/meta';
@@ -7,24 +7,25 @@ import { uuidv7 } from '@/db/uuid';
 import { dueAt, INITIAL_STATE, review, type Grade, type Sm2State } from '@/srs/sm2';
 import { enqueueReviewLog } from '@/sync/outbox';
 
-export type DueCard = { card: Card; state: ReviewState | null };
+export type DueCard = { card: Card; state: ReviewState };
 
 // A card is due today if its due time falls anywhere before midnight, local time.
 export function endOfToday(now: Date = new Date()): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 }
 
-// Cards to study now: never reviewed (no state row) or due today or earlier.
+// Cards to repeat now: already learned (they have a state row) and due today or earlier.
+// Words that were never studied are not here; they are introduced unit by unit.
 export function getDueCards(deckId: string, now: Date = new Date()): DueCard[] {
   return db
     .select({ card: cards, state: reviewStates })
     .from(cards)
-    .leftJoin(reviewStates, eq(reviewStates.cardId, cards.id))
+    .innerJoin(reviewStates, eq(reviewStates.cardId, cards.id))
     .where(
       and(
         eq(cards.deckId, deckId),
         isNull(cards.deletedAt),
-        or(isNull(reviewStates.cardId), lte(reviewStates.dueAt, endOfToday(now).toISOString())),
+        lte(reviewStates.dueAt, endOfToday(now).toISOString()),
       ),
     )
     .orderBy(asc(reviewStates.dueAt))
@@ -39,12 +40,15 @@ export function toSm2State(state: ReviewState | null): Sm2State {
 
 // Saves one review: the log row, the recalculated state and the outbox entry, all or nothing.
 export function recordReview(cardId: string, grade: Grade, now: Date = new Date()): void {
+  db.transaction((tx) => insertReview(tx, cardId, grade, now));
+}
+
+// The same steps for a caller that already has a transaction open (a finished unit test saves many reviews at once).
+export function insertReview(tx: Tx, cardId: string, grade: Grade, now: Date): void {
   const log = { id: uuidv7(), cardId, grade, reviewedAt: now.toISOString(), deviceId: getDeviceId() };
-  db.transaction((tx) => {
-    tx.insert(reviewLogs).values(log).run();
-    rebuildReviewState(tx, cardId);
-    enqueueReviewLog(tx, log);
-  });
+  tx.insert(reviewLogs).values(log).run();
+  rebuildReviewState(tx, cardId);
+  enqueueReviewLog(tx, log);
 }
 
 // Replays every log of the card through SM-2, oldest first. Used after a local review and after

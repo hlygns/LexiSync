@@ -40,7 +40,7 @@ export function CardForm({ initial, submitLabel, onSubmit }: Props) {
       <Text style={common.label}>Anlam</Text>
       <TextInput style={common.input} value={meaning} onChangeText={setMeaning} autoCapitalize="none" />
 
-      <Text style={common.label}>Örnek cümle (isteğe bağlı)</Text>
+      <Text style={common.label}>Örnek cümleler (her satıra bir cümle, isteğe bağlı)</Text>
       <TextInput style={common.input} value={example} onChangeText={setExample} multiline />
 
       <Text style={common.label}>Etiketler (virgülle ayır)</Text>

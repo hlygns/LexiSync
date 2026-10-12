@@ -70,15 +70,27 @@ public class SyncService(AppDbContext db) : ISyncService
             .Select(l => new { Dto = new ReviewLogDto(l.Id, l.CardId, (int)l.Grade, l.ReviewedAt, l.DeviceId), l.ServerVersion })
             .ToListAsync(cancellationToken);
 
+        var quizResults = await db.QuizResults.AsNoTracking()
+            .Where(r => r.UserId == userId && r.ServerVersion > since)
+            .OrderBy(r => r.ServerVersion)
+            .Select(r => new { Dto = new QuizResultDto(r.Id, r.DeckId, r.UnitIndex, r.Score, r.Total, r.CompletedAt, r.DeviceId), r.ServerVersion })
+            .ToListAsync(cancellationToken);
+
         var latestVersion = new[]
         {
             since,
             decks.Count > 0 ? decks[^1].ServerVersion : 0,
             cards.Count > 0 ? cards[^1].ServerVersion : 0,
-            logs.Count > 0 ? logs[^1].ServerVersion : 0
+            logs.Count > 0 ? logs[^1].ServerVersion : 0,
+            quizResults.Count > 0 ? quizResults[^1].ServerVersion : 0
         }.Max();
 
-        return new PullResponse(latestVersion, decks, cards, logs.Select(l => l.Dto).ToList());
+        return new PullResponse(
+            latestVersion,
+            decks,
+            cards,
+            logs.Select(l => l.Dto).ToList(),
+            quizResults.Select(r => r.Dto).ToList());
     }
 
     private async Task<(string Status, string? Reason)> ApplyAsync(Guid userId, PushChange change, CancellationToken cancellationToken)
@@ -90,6 +102,7 @@ public class SyncService(AppDbContext db) : ISyncService
                 "deck" => await ApplyDeckAsync(userId, Deserialize<DeckDto>(change.Data), cancellationToken),
                 "card" => await ApplyCardAsync(userId, Deserialize<CardDto>(change.Data), cancellationToken),
                 "reviewLog" => await ApplyReviewLogAsync(userId, Deserialize<ReviewLogDto>(change.Data), cancellationToken),
+                "quizResult" => await ApplyQuizResultAsync(userId, Deserialize<QuizResultDto>(change.Data), cancellationToken),
                 _ => (PushStatus.Rejected, $"Unknown entity '{change.Entity}'.")
             };
         }
@@ -233,6 +246,34 @@ public class SyncService(AppDbContext db) : ISyncService
         await db.SaveChangesAsync(cancellationToken);
 
         await RebuildReviewStateAsync(dto.CardId, cancellationToken);
+        return (PushStatus.Applied, null);
+    }
+
+    private async Task<(string, string?)> ApplyQuizResultAsync(Guid userId, QuizResultDto dto, CancellationToken cancellationToken)
+    {
+        if (dto.UnitIndex < 0 || dto.Total is < 1 or > 100 || dto.Score < 0 || dto.Score > dto.Total)
+            return (PushStatus.Rejected, "Unit index, score or total is out of range.");
+
+        var deck = await db.Decks.FindAsync([dto.DeckId], cancellationToken);
+        if (deck is null || deck.UserId != userId)
+            return (PushStatus.Rejected, "Unknown deck.");
+
+        // Append-only, like review logs.
+        if (await db.QuizResults.FindAsync([dto.Id], cancellationToken) is not null)
+            return (PushStatus.Ignored, "Quiz result already exists.");
+
+        db.QuizResults.Add(new QuizResult
+        {
+            Id = dto.Id,
+            UserId = userId,
+            DeckId = dto.DeckId,
+            UnitIndex = dto.UnitIndex,
+            Score = dto.Score,
+            Total = dto.Total,
+            CompletedAt = dto.CompletedAt.ToUniversalTime(),
+            DeviceId = dto.DeviceId,
+            ServerVersion = await NextVersionAsync(cancellationToken)
+        });
         return (PushStatus.Applied, null);
     }
 

@@ -22,6 +22,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       # Inside the compose network the database is reachable by its service name, "db".
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Jwt__Key: ${JWT_KEY}
     ports:
       - "8080:8080"
     depends_on:

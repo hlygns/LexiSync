@@ -42,8 +42,12 @@ export default function QuizScreen() {
   if (passed !== null) {
     const score = answers.filter((answer) => answer.correct).length;
     const needed = Math.ceil(answers.length * PASS_RATIO);
+    const wrongCards = answers
+      .filter((answer) => !answer.correct)
+      .map((answer) => unit.cards.find((card) => card.id === answer.cardId))
+      .filter((card) => card !== undefined);
     return (
-      <View style={[common.screen, styles.center]}>
+      <ScrollView style={common.screen} contentContainerStyle={styles.result}>
         <Stack.Screen options={{ title }} />
         <Text style={[styles.score, { color: passed ? colors.success : colors.danger }]}>
           {score} / {answers.length}
@@ -56,23 +60,36 @@ export default function QuizScreen() {
         </Text>
 
         {passed ? (
-          <Pressable style={[common.button, styles.wide]} onPress={() => router.back()}>
-            <Text style={common.buttonText}>Desteye dön</Text>
+          <Pressable
+            style={[common.button, styles.wide]}
+            onPress={() => router.dismissTo({ pathname: '/deck/[id]', params: { id: deckId } })}
+          >
+            <Text style={common.buttonText}>Ünitelere dön</Text>
           </Pressable>
         ) : (
           <>
-            <Pressable
-              style={[common.button, styles.wide]}
-              onPress={() => router.replace({ pathname: '/unit/[deckId]', params: { deckId, unit: String(unitIndex) } })}
-            >
-              <Text style={common.buttonText}>Kelimeleri tekrar çalış</Text>
+            {/* Back to this unit's word list, which is the screen underneath. */}
+            <Pressable style={[common.button, styles.wide]} onPress={() => router.back()}>
+              <Text style={common.buttonText}>Kelime listesine dön</Text>
             </Pressable>
             <Pressable style={[common.outlineButton, styles.wide]} onPress={restart}>
               <Text style={common.outlineButtonText}>Testi tekrar çöz</Text>
             </Pressable>
           </>
         )}
-      </View>
+
+        {wrongCards.length > 0 && (
+          <View style={styles.wide}>
+            <Text style={[common.sectionTitle, styles.wrongTitle]}>Yanlış yaptıkların ({wrongCards.length})</Text>
+            {wrongCards.map((card) => (
+              <View key={card.id} style={styles.wrongRow}>
+                <Text style={styles.wrongTerm}>{card.term}</Text>
+                <Text style={styles.wrongMeaning}>{card.meaning}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     );
   }
 
@@ -141,6 +158,18 @@ export default function QuizScreen() {
 const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   wide: { alignSelf: 'stretch' },
+  result: { alignItems: 'center', padding: 24, gap: 12 },
+  wrongTitle: { marginHorizontal: 0, marginTop: 20 },
+  wrongRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 8,
+  },
+  wrongTerm: { fontSize: 16, fontWeight: '700', color: colors.primary },
+  wrongMeaning: { fontSize: 15, color: colors.text, marginTop: 2 },
   score: { fontSize: 56, fontWeight: '800' },
   resultTitle: { fontSize: 24, fontWeight: '800', color: colors.text },
   resultText: { fontSize: 16, color: colors.muted, textAlign: 'center', lineHeight: 22, marginBottom: 12 },

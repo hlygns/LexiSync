@@ -1,21 +1,23 @@
+import { count } from 'drizzle-orm';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { db } from '@/db/client';
+import { cards, quizResults } from '@/db/schema';
 import { getUnits } from '@/db/units';
 import { colors, common } from '@/ui/styles';
 
-// What is visible on the current word: the word alone, then its meaning, then the example sentences.
-type Step = 'term' | 'meaning' | 'examples';
-
-// Learning a unit: go through its 20 words one by one, then take the test.
+// A unit's page: its 20 words as a list, and the unit's test underneath.
+// Tapping a word opens it with its meaning and example sentences; the test unlocks the next unit.
 export default function UnitScreen() {
   const { deckId, unit: unitParam } = useLocalSearchParams<{ deckId: string; unit: string }>();
   const unitIndex = Number(unitParam);
 
-  const [unit] = useState(() => getUnits(deckId)[unitIndex]);
-  const [position, setPosition] = useState(0);
-  const [step, setStep] = useState<Step>('term');
+  // Re-render when a card is edited or a test result arrives.
+  useLiveQuery(db.select({ total: count() }).from(cards));
+  useLiveQuery(db.select({ total: count() }).from(quizResults));
+  const unit = getUnits(deckId)[unitIndex];
 
   if (!unit || unit.status === 'locked') {
     return (
@@ -25,136 +27,83 @@ export default function UnitScreen() {
     );
   }
 
-  const title = `Ünite ${unitIndex + 1}`;
-  const startQuiz = () => router.replace({ pathname: '/quiz/[deckId]', params: { deckId, unit: String(unitIndex) } });
-
-  // All words seen: the test is the only way forward.
-  if (position >= unit.cards.length) {
-    return (
-      <View style={[common.screen, styles.center]}>
-        <Stack.Screen options={{ title }} />
-        <Text style={styles.doneTitle}>{unit.cards.length} kelimeyi gördün</Text>
-        <Text style={styles.doneText}>
-          Şimdi bu kelimelerle ilgili {unit.cards.length} soruluk testi çöz. Testi geçince sonraki ünite açılır.
-        </Text>
-        <Pressable style={[common.button, styles.wide]} onPress={startQuiz}>
-          <Text style={common.buttonText}>Teste başla</Text>
-        </Pressable>
-        <Pressable
-          style={[common.outlineButton, styles.wide]}
-          onPress={() => {
-            setPosition(0);
-            setStep('term');
-          }}
-        >
-          <Text style={common.outlineButtonText}>Kelimeleri baştan gör</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const card = unit.cards[position];
-  const examples = (card.example ?? '').split('\n').filter((line) => line.trim().length > 0);
-
-  function next() {
-    if (step === 'term') {
-      setStep('meaning');
-    } else if (step === 'meaning' && examples.length > 0) {
-      setStep('examples');
-    } else {
-      setPosition(position + 1);
-      setStep('term');
-    }
-  }
-
-  const nextLabel =
-    step === 'term' ? 'Türkçesini göster' : step === 'meaning' && examples.length > 0 ? 'Örnek cümleleri göster' : 'Sonraki kelime';
+  const openWord = (cardId: string) =>
+    router.push({ pathname: '/word/[cardId]', params: { cardId, deckId, unit: String(unitIndex) } });
 
   return (
     <View style={common.screen}>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{ title: `Ünite ${unitIndex + 1}` }} />
 
-      <View style={styles.progress}>
-        <View style={common.progressTrack}>
-          <View style={[common.progressFill, { width: `${(position / unit.cards.length) * 100}%` }]} />
-        </View>
-        <Text style={styles.progressText}>
-          {position + 1} / {unit.cards.length}
-        </Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.cardArea}>
-        <View style={styles.wordCard}>
-          <Text style={styles.term}>{card.term}</Text>
-
-          {step !== 'term' && (
-            <View style={styles.meaningBox}>
-              <Text style={styles.meaning}>{card.meaning}</Text>
+      <FlatList
+        data={unit.cards}
+        keyExtractor={(card) => card.id}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View>
+            <Pressable style={[common.outlineButton, styles.startButton]} onPress={() => openWord(unit.cards[0].id)}>
+              <Text style={common.outlineButtonText}>Kelimeleri sırayla çalış</Text>
+            </Pressable>
+            <Text style={common.sectionTitle}>Kelimeler ({unit.cards.length})</Text>
+          </View>
+        }
+        renderItem={({ item, index }) => (
+          <Pressable style={[common.card, styles.word]} onPress={() => openWord(item.id)}>
+            <Text style={styles.number}>{index + 1}</Text>
+            <View style={styles.wordText}>
+              <Text style={common.rowTitle}>{item.term}</Text>
+              <Text style={common.rowSubtitle}>{item.meaning}</Text>
             </View>
-          )}
-
-          {step === 'examples' &&
-            examples.map((example, index) => (
-              <View key={index} style={styles.example}>
-                <Text style={styles.exampleNumber}>{index + 1}</Text>
-                <Text style={styles.exampleText}>{example}</Text>
-              </View>
-            ))}
-        </View>
-      </ScrollView>
-
-      <View style={common.footer}>
-        <Pressable style={common.button} onPress={next}>
-          <Text style={common.buttonText}>{nextLabel}</Text>
-        </Pressable>
-        {position > 0 && (
-          <Pressable
-            onPress={() => {
-              setPosition(position - 1);
-              setStep('examples');
-            }}
-          >
-            <Text style={styles.back}>Önceki kelime</Text>
+            <Text style={styles.chevron}>›</Text>
           </Pressable>
         )}
+      />
+
+      {/* The unit's test, always reachable below the word list. */}
+      <View style={styles.testBar}>
+        <Text style={styles.testInfo}>
+          {unit.status === 'passed'
+            ? `Test geçildi · en iyi ${unit.best?.score}/${unit.best?.total}`
+            : unit.best
+              ? `Son deneme ${unit.best.score}/${unit.best.total} · sonraki ünite için testi geç`
+              : `${unit.cards.length} soruluk test · geçince sonraki ünite açılır`}
+        </Text>
+        <Pressable
+          style={common.button}
+          onPress={() => router.push({ pathname: '/quiz/[deckId]', params: { deckId, unit: String(unitIndex) } })}
+        >
+          <Text style={common.buttonText}>{unit.status === 'passed' ? 'Testi tekrar çöz' : 'Teste başla'}</Text>
+        </Pressable>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
-  wide: { alignSelf: 'stretch' },
-  doneTitle: { fontSize: 24, fontWeight: '800', color: colors.primary, textAlign: 'center' },
-  doneText: { fontSize: 16, color: colors.muted, textAlign: 'center', lineHeight: 22, marginBottom: 12 },
-  progress: { paddingHorizontal: 16, paddingTop: 16 },
-  progressText: { textAlign: 'center', color: colors.muted, marginTop: 8, fontSize: 13 },
-  cardArea: { padding: 16, flexGrow: 1, justifyContent: 'center' },
-  wordCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 24,
-    minHeight: 280,
-    justifyContent: 'center',
-  },
-  term: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
-  meaningBox: { backgroundColor: colors.pinkSoft, borderRadius: 12, padding: 14, marginTop: 20 },
-  meaning: { fontSize: 20, fontWeight: '600', color: colors.text, textAlign: 'center' },
-  example: { flexDirection: 'row', gap: 10, marginTop: 16, alignItems: 'flex-start' },
-  exampleNumber: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.pink,
+  center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
+  list: { paddingTop: 16, paddingBottom: 16 },
+  startButton: { marginHorizontal: 16, marginBottom: 16 },
+  word: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  number: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.pinkSoft,
     color: colors.primaryDark,
     textAlign: 'center',
-    lineHeight: 22,
-    fontSize: 12,
+    lineHeight: 28,
+    fontSize: 13,
     fontWeight: '800',
     overflow: 'hidden',
+    marginRight: 12,
   },
-  exampleText: { flex: 1, fontSize: 16, color: colors.text, lineHeight: 22 },
-  back: { color: colors.muted, textAlign: 'center', fontSize: 15, padding: 4 },
+  wordText: { flex: 1 },
+  chevron: { fontSize: 24, color: colors.pink, marginLeft: 8 },
+  testBar: {
+    padding: 16,
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  testInfo: { fontSize: 13, color: colors.muted, textAlign: 'center' },
 });

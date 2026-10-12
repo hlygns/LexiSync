@@ -63,6 +63,7 @@ function RootNavigator() {
         <Stack.Screen name="card/new" options={{ title: 'Yeni kart' }} />
         <Stack.Screen name="card/[id]" options={{ title: 'Kartı düzenle' }} />
         <Stack.Screen name="unit/[deckId]" />
+        <Stack.Screen name="word/[cardId]" />
         <Stack.Screen name="quiz/[deckId]" />
         <Stack.Screen name="study/[deckId]" options={{ title: 'Tekrar' }} />
       </Stack.Protected>

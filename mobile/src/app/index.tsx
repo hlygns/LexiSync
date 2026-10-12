@@ -1,26 +1,64 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { count, desc, isNull } from 'drizzle-orm';
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { router, Stack } from 'expo-router';
+import { FlatList, Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
+import { db } from '@/db/client';
+import { examName } from '@/db/exams';
+import { cards, decks } from '@/db/schema';
+import { colors, common } from '@/ui/styles';
 
-export default function HomeScreen() {
-  const { session, signOut } = useAuth();
+export default function DecksScreen() {
+  const { signOut } = useAuth();
+
+  // Live queries: the list re-renders by itself whenever the table changes.
+  const { data: deckRows } = useLiveQuery(
+    db.select().from(decks).where(isNull(decks.deletedAt)).orderBy(desc(decks.id)),
+  );
+  const { data: cardCounts } = useLiveQuery(
+    db
+      .select({ deckId: cards.deckId, total: count() })
+      .from(cards)
+      .where(isNull(cards.deletedAt))
+      .groupBy(cards.deckId),
+  );
+  const countByDeck = new Map(cardCounts.map((row) => [row.deckId, row.total]));
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Hoş geldin</Text>
-      <Text style={styles.email}>{session?.email}</Text>
+    <View style={common.screen}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={signOut} hitSlop={12}>
+              <Text style={{ color: colors.primary, fontSize: 16 }}>Çıkış</Text>
+            </Pressable>
+          ),
+        }}
+      />
 
-      <Pressable style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Çıkış yap</Text>
-      </Pressable>
+      <FlatList
+        data={deckRows}
+        keyExtractor={(deck) => deck.id}
+        ListEmptyComponent={<Text style={common.empty}>Henüz desten yok. İlk desteni oluştur.</Text>}
+        renderItem={({ item }) => (
+          <Pressable
+            style={common.row}
+            onPress={() => router.push({ pathname: '/deck/[id]', params: { id: item.id } })}
+          >
+            <Text style={common.rowTitle}>{item.name}</Text>
+            <Text style={common.rowSubtitle}>
+              {examName(item.examId)} · {countByDeck.get(item.id) ?? 0} kart
+            </Text>
+          </Pressable>
+        )}
+      />
+
+      <View style={common.footer}>
+        <Pressable style={common.button} onPress={() => router.push('/deck/new')}>
+          <Text style={common.buttonText}>Yeni deste</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: '600' },
-  email: { fontSize: 16, color: '#555', marginTop: 8, marginBottom: 32 },
-  button: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, borderWidth: 1, borderColor: '#ccc' },
-  buttonText: { fontSize: 16 },
-});

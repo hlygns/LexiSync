@@ -1,4 +1,6 @@
 using LexiSync.Infrastructure;
+using LexiSync.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +10,18 @@ builder.Services.AddInfrastructure(connectionString);
 
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
+// Development only: create or update the tables on startup, so "docker compose up" is enough.
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
+// Healthy only if the database is actually reachable, not merely if the process is running.
+app.MapGet("/health", async (AppDbContext db) =>
+    await db.Database.CanConnectAsync()
+        ? Results.Ok(new { status = "healthy" })
+        : Results.Json(new { status = "unhealthy" }, statusCode: StatusCodes.Status503ServiceUnavailable));
 
 app.Run();

@@ -52,20 +52,22 @@ function RootNavigator() {
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: colors.onPrimary,
         headerTitleStyle: { fontWeight: '700' },
+        headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
       }}
     >
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="index" options={{ title: 'LexiSync' }} />
-        <Stack.Screen name="deck/new" options={{ title: 'Yeni deste' }} />
+        <Stack.Screen name="profile" options={{ title: 'Profilim' }} />
+        <Stack.Screen name="add" options={{ title: 'Kelime ekle' }} />
+        <Stack.Screen name="words" options={{ title: 'Kelime Öğren' }} />
         <Stack.Screen name="deck/[id]" />
-        <Stack.Screen name="cards/[deckId]" options={{ title: 'Kartlar' }} />
-        <Stack.Screen name="card/new" options={{ title: 'Yeni kart' }} />
-        <Stack.Screen name="card/[id]" options={{ title: 'Kartı düzenle' }} />
         <Stack.Screen name="unit/[deckId]" />
         <Stack.Screen name="word/[cardId]" />
         <Stack.Screen name="quiz/[deckId]" />
-        <Stack.Screen name="study/[deckId]" options={{ title: 'Tekrar' }} />
+        <Stack.Screen name="review" options={{ title: 'Tekrar' }} />
+        <Stack.Screen name="practice/[mode]" />
+        <Stack.Screen name="progress" options={{ title: 'Gelişimim' }} />
       </Stack.Protected>
 
       <Stack.Protected guard={!isSignedIn}>

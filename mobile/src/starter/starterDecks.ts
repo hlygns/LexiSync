@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { createCard, updateCard } from '@/db/cards';
 import { db } from '@/db/client';
 import { createDeck, deleteDeck } from '@/db/decks';
+import { getMeta, setMeta } from '@/db/meta';
 import { cards, decks } from '@/db/schema';
 import { STARTER_DECKS } from '@/starter/starterData';
 
@@ -12,6 +13,19 @@ const RETIRED_DECK_NAMES = [
   'YÖKDİL Sağlık — Temel terimler',
   'YÖKDİL Sosyal — Temel terimler',
 ];
+
+// Raise this when the built-in word list changes; every device then updates itself once.
+const STARTER_VERSION = '3';
+const STARTER_VERSION_KEY = 'starterVersion';
+
+// Installs or updates the built-in words, once per version. Must run only after a successful sync:
+// on a new device the account's existing decks have to arrive first, otherwise the same decks
+// would be created a second time here.
+export function ensureStarterContent(): void {
+  if (getMeta(STARTER_VERSION_KEY) === STARTER_VERSION) return;
+  addStarterDecks();
+  setMeta(STARTER_VERSION_KEY, STARTER_VERSION);
+}
 
 // Adds the starter decks, or brings existing ones up to date. Safe to run more than once:
 // a deck is matched by name and a card by its term, so nothing is duplicated, and a card

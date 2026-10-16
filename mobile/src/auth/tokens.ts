@@ -1,7 +1,5 @@
 import { ApiError, postJson, request } from '@/api/client';
-import { clearSession, getSession, saveSession } from '@/auth/session';
-
-type AuthResponse = { accessToken: string; accessTokenExpiresAt: string; refreshToken: string };
+import { clearSession, getSession, saveSession, sessionFrom, type AuthResponse } from '@/auth/session';
 
 // Refresh a little before the real expiry, so a token never expires mid-request.
 const EXPIRY_MARGIN_MS = 30_000;
@@ -18,7 +16,7 @@ async function refresh(): Promise<string> {
 
   try {
     const response = await postJson<AuthResponse>('/auth/refresh', { refreshToken: session.refreshToken });
-    await saveSession({ email: session.email, ...response });
+    await saveSession(sessionFrom(response));
     return response.accessToken;
   } catch (error) {
     // The server said the refresh token is no longer valid: the user has to sign in again.

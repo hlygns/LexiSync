@@ -7,18 +7,22 @@ YDS için aralıklı tekrar (spaced repetition) tabanlı, **offline-first** mobi
 
 **Teknolojiler:** React Native (Expo) · TypeScript · SQLite (Drizzle) · ASP.NET Core (.NET 10) · EF Core · PostgreSQL · Docker · GitHub Actions
 
+## Ekran görüntüleri
+
+<!-- SCREENSHOTS -->
+
 ## Özellikler
 
-- Kayıt ve giriş (JWT + tek kullanımlık refresh token); oturum cihazda şifreli saklanır
-- Deste ve kart oluşturma, düzenleme, silme
-- 20 kelimelik üniteler: önce kelime, sonra Türkçesi, sonra iki örnek cümle
-- Her ünitenin sonunda 20 soruluk test (anlam seçme ve boşluk doldurma); %70 ile geçilmeden sonraki ünite açılmaz
-- Öğrenilen kelimelerin tekrarı: "Bilmiyorum / Zor / İyi / Kolay" ile puanla
-- SM-2 algoritması ile bir sonraki tekrar tarihinin hesaplanması
-- Tamamen çevrimdışı çalışma ve otomatik senkronizasyon
-- Birden fazla cihaz: aynı hesapla telefonda ve tablette çalışılabilir
-- Bugün çalışılan, bekleyen kart ve gün serisi istatistikleri
-- 200 hazır YDS kelimesi (fiiller, sıfatlar, isimler, bağlaçlar), her biri iki örnek cümleyle
+- **Kayıt:** karşılama sayfası, ardından kaydırmalı kartlarla motivasyon ve günlük hedef, en sonda kullanıcı adı ve şifre. JWT ve tek kullanımlık refresh token; oturum cihazda şifreli saklanır.
+- **224 hazır YDS kelimesi** (akademik fiiller, sıfatlar, isimler, bağlaçlar, phrasal verb'ler); her biri iki örnek cümle ve cümlelerin Türkçesiyle
+- **20 kelimelik üniteler:** kelime kartında önce İngilizcesi, dokununca Türkçesi ve örnek cümleler
+- **Ünite testi:** her ünitenin sonunda 20 soru (anlam seçme ve boşluk doldurma); %70 ile geçilmeden sonraki ünite açılmaz
+- **Çalışma alanları:** Cloze Test, Çeviri (İngilizce ⇄ Türkçe cümle), Kelime Testi ve hepsinden karışık 20 soruluk Genel Test
+- **Açıklamalı sonuçlar:** her yanlış ve boş bırakılan soru için doğru cevap, cümlenin Türkçesi ve diğer şıkların neden yanlış olduğu
+- **Tekrar:** öğrenilen kelimeler SM-2 algoritmasıyla zamanı gelince geri gelir; "Bilmiyorum / Zor / İyi / Kolay" ile puanlanır
+- **Gelişimim:** her alan için deneme sayısı, ortalama, en iyi sonuç ve son denemeler; günlük hedef ve gün serisi
+- **Kendi kelimelerin:** ana sayfadaki "+" ile kendi grubuna kelime ekleme
+- **Offline-first:** tamamen çevrimdışı çalışır, bağlantı gelince kendiliğinden senkronize olur; aynı hesapla telefon ve tablette çalışılabilir
 
 ## Mimari
 
@@ -126,13 +130,28 @@ npx expo start
 ```
 
 Terminaldeki QR kodu Expo Go ile okut. Gerçek telefonda API adresi `localhost` olamaz;
-bilgisayarın yerel ağdaki IP adresi yazılmalıdır.
+bilgisayarın yerel ağdaki IP adresi yazılmalıdır. IP değişirse adres uygulamanın içinden de
+değiştirilebilir: karşılama ekranının altında ve profilde "Sunucu · Değiştir".
+
+### Android APK
+
+React Native için Java 17 gerekir (Java 24 ve üzeri C++ derleme adımını bozar).
+
+```powershell
+cd mobile
+npx expo prebuild --platform android --clean
+$env:JAVA_HOME = "<Java 17 klasörü>"
+$env:ANDROID_HOME = "$env:LOCALAPPDATAAndroidSdk"
+cd android
+.gradlew.bat assembleRelease
+# çıktı: android/app/build/outputs/apk/release/app-release.apk
+```
 
 ## API
 
 | Metot | Yol | Amaç |
 |---|---|---|
-| POST | `/auth/register` | Kayıt |
+| POST | `/auth/register` | Kayıt (kullanıcı adı, şifre, motivasyon, günlük hedef) |
 | POST | `/auth/login` | Giriş; access ve refresh token döner |
 | POST | `/auth/refresh` | Token yenileme (refresh token tek kullanımlıktır) |
 | GET | `/auth/me` | Token'ın sahibi |
@@ -146,9 +165,9 @@ bilgisayarın yerel ağdaki IP adresi yazılmalıdır.
 | Paket | Sayı | Ne test eder |
 |---|---|---|
 | Backend unit (xUnit) | 42 | SM-2, çakışma kuralı |
-| Backend entegrasyon (xUnit + Testcontainers) | 29 | Gerçek PostgreSQL üzerinde kimlik, push/pull, idempotency, çakışma, kullanıcı izolasyonu |
-| Mobil unit (Jest) | 65 | SM-2, birleştirme kuralı, gün serisi, test sorusu üretimi, hazır kelime verisi |
-| Mobil uçtan uca (Jest) | 10 | Gerçek senkronizasyon motoru, iki sanal cihaz, çalışan API |
+| Backend entegrasyon (xUnit + Testcontainers) | 40 | Gerçek PostgreSQL üzerinde kimlik, push/pull, idempotency, çakışma, kullanıcı izolasyonu |
+| Mobil unit (Jest) | 89 | SM-2, birleştirme kuralı, gün serisi, soru ve açıklama üretimi, kelime ve çeviri verisi |
+| Mobil uçtan uca (Jest) | 12 | Gerçek senkronizasyon motoru, iki sanal cihaz, çalışan API |
 
 ```bash
 dotnet test backend/LexiSync.slnx      # Docker çalışıyor olmalı
@@ -172,7 +191,7 @@ Backend, `backend/Dockerfile` ile herhangi bir container servisine kurulabilir. 
 | `Jwt__Key` | En az 32 karakterlik rastgele değer |
 | `Database__MigrateOnStartup` | `true` |
 
-Android APK için: `cd mobile && npx eas-cli build --platform android --profile preview`
+Android APK bulutta da derlenebilir: `cd mobile && npx eas-cli build --platform android --profile preview`
 (`EXPO_PUBLIC_API_URL` değeri EAS ortam değişkeni olarak verilmelidir).
 
 ## Bilinen sınırlamalar
@@ -182,6 +201,8 @@ Android APK için: `cd mobile && npx eas-cli build --platform android --profile 
 - "Sonraki yazan" cihaz saatine göre belirlenir; saati yanlış bir cihaz çakışmayı haksız kazanabilir.
 - Pull sayfalama yapmaz; çok büyük hesaplarda ilk senkronizasyon tek istekte gelir.
 - Çıkış yapmak cihazdaki veriyi siler; gönderilmemiş değişiklik varsa uygulama önce uyarır.
+- Hazır kelimeler ve örnek cümleler YDS tarzı akademik metinlerde sık geçen kelimelerden derlendi;
+  ÖSYM'nin resmî bir kelime listesi yoktur ve sorular geçmiş sınavlardan alınmamıştır.
 
 ## Yol haritası
 
@@ -202,8 +223,9 @@ mobile/
   src/db/     SQLite şeması ve sorgular
   src/sync/   Outbox, push/pull motoru
   src/srs/    SM-2 (TypeScript)
-  src/quiz/   Ünite testi sorularının üretimi
-  src/starter/ Hazır YDS kelimeleri
+  src/quiz/   Soru ve açıklama üretimi (ünite testi, cloze, çeviri, kelime, genel test)
+  src/practice/ Çeviri soruları ve çalışma alanları
+  src/starter/ Hazır YDS kelimeleri ve örnek cümlelerin Türkçesi
   drizzle/    SQLite migration'ları
 shared/       İki tarafın ortak SM-2 test vektörleri
 docker-compose.yml

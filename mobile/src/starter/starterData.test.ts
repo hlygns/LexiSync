@@ -40,3 +40,24 @@ describe('starter decks', () => {
     expect(STARTER_DECKS.every((deck) => [1, 2, 3, 4].includes(deck.examId))).toBe(true);
   });
 });
+
+describe('sentence translations', () => {
+  const { SENTENCE_TRANSLATIONS } = require('./sentenceTranslations') as typeof import('./sentenceTranslations');
+
+  test('every built-in word has a Turkish translation for both of its example sentences', () => {
+    const missing = allWords
+      .map(({ word }) => word[0])
+      .filter((term) => {
+        const pair = SENTENCE_TRANSLATIONS[term];
+        return !pair || pair.length !== 2 || pair.some((sentence) => sentence.trim().length === 0);
+      });
+
+    expect(missing).toEqual([]);
+  });
+
+  test('has no translations for words that do not exist', () => {
+    const terms = new Set(allWords.map(({ word }) => word[0]));
+
+    expect(Object.keys(SENTENCE_TRANSLATIONS).filter((term) => !terms.has(term))).toEqual([]);
+  });
+});

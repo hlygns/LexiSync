@@ -75,7 +75,19 @@ export const quizResults = sqliteTable(
   (table) => [index('quiz_results_deck_id_idx').on(table.deckId)],
 );
 
-export type OutboxEntity = 'deck' | 'card' | 'reviewLog' | 'quizResult';
+export type PracticeMode = 'vocab' | 'cloze' | 'translation' | 'general';
+
+// One finished practice session. Append-only and synced; this is the progress history.
+export const practiceResults = sqliteTable('practice_results', {
+  id: text('id').primaryKey(),
+  mode: text('mode').$type<PracticeMode>().notNull(),
+  score: integer('score').notNull(),
+  total: integer('total').notNull(),
+  completedAt: text('completed_at').notNull(),
+  deviceId: text('device_id').notNull(),
+});
+
+export type OutboxEntity = 'deck' | 'card' | 'reviewLog' | 'quizResult' | 'practiceResult';
 
 // Changes waiting to be sent to the server. A row is written in the same transaction as the change itself.
 export const outbox = sqliteTable('outbox', {

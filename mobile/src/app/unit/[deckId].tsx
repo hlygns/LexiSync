@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { count } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -9,19 +10,19 @@ import { getUnits } from '@/db/units';
 import { colors, common } from '@/ui/styles';
 
 // A unit's page: its 20 words as a list, and the unit's test underneath.
-// Tapping a word opens it with its meaning and example sentences; the test unlocks the next unit.
+// Only the English word is listed; its meaning appears when the word is opened and tapped.
 export default function UnitScreen() {
   const { deckId, unit: unitParam } = useLocalSearchParams<{ deckId: string; unit: string }>();
   const unitIndex = Number(unitParam);
 
-  // Re-render when a card is edited or a test result arrives.
+  // Re-render when a card changes or a test result arrives.
   useLiveQuery(db.select({ total: count() }).from(cards));
   useLiveQuery(db.select({ total: count() }).from(quizResults));
   const unit = getUnits(deckId)[unitIndex];
 
   if (!unit || unit.status === 'locked') {
     return (
-      <View style={[common.screen, styles.center]}>
+      <View style={[common.screen, common.center]}>
         <Text style={common.empty}>Bu ünite henüz açılmadı. Önce bir önceki ünitenin testini geçmelisin.</Text>
       </View>
     );
@@ -40,20 +41,20 @@ export default function UnitScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View>
-            <Pressable style={[common.outlineButton, styles.startButton]} onPress={() => openWord(unit.cards[0].id)}>
-              <Text style={common.outlineButtonText}>Kelimeleri sırayla çalış</Text>
+            <Pressable style={[common.button, styles.startButton]} onPress={() => openWord(unit.cards[0].id)}>
+              <Ionicons name="play" size={18} color={colors.onPrimary} />
+              <Text style={common.buttonText}>Kelimeleri sırayla çalış</Text>
             </Pressable>
             <Text style={common.sectionTitle}>Kelimeler ({unit.cards.length})</Text>
           </View>
         }
         renderItem={({ item, index }) => (
           <Pressable style={[common.card, styles.word]} onPress={() => openWord(item.id)}>
-            <Text style={styles.number}>{index + 1}</Text>
-            <View style={styles.wordText}>
-              <Text style={common.rowTitle}>{item.term}</Text>
-              <Text style={common.rowSubtitle}>{item.meaning}</Text>
+            <View style={styles.number}>
+              <Text style={styles.numberText}>{index + 1}</Text>
             </View>
-            <Text style={styles.chevron}>›</Text>
+            <Text style={[common.rowTitle, styles.term]}>{item.term}</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.pink} />
           </Pressable>
         )}
       />
@@ -64,14 +65,14 @@ export default function UnitScreen() {
           {unit.status === 'passed'
             ? `Test geçildi · en iyi ${unit.best?.score}/${unit.best?.total}`
             : unit.best
-              ? `Son deneme ${unit.best.score}/${unit.best.total} · sonraki ünite için testi geç`
+              ? `Son en iyi deneme ${unit.best.score}/${unit.best.total} · sonraki ünite için testi geç`
               : `${unit.cards.length} soruluk test · geçince sonraki ünite açılır`}
         </Text>
         <Pressable
-          style={common.button}
+          style={common.outlineButton}
           onPress={() => router.push({ pathname: '/quiz/[deckId]', params: { deckId, unit: String(unitIndex) } })}
         >
-          <Text style={common.buttonText}>{unit.status === 'passed' ? 'Testi tekrar çöz' : 'Teste başla'}</Text>
+          <Text style={common.outlineButtonText}>{unit.status === 'passed' ? 'Testi tekrar çöz' : 'Teste başla'}</Text>
         </Pressable>
       </View>
     </View>
@@ -79,25 +80,19 @@ export default function UnitScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   list: { paddingTop: 16, paddingBottom: 16 },
-  startButton: { marginHorizontal: 16, marginBottom: 16 },
-  word: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  startButton: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginHorizontal: 16, marginBottom: 16 },
+  word: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
   number: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: colors.pinkSoft,
-    color: colors.primaryDark,
-    textAlign: 'center',
-    lineHeight: 28,
-    fontSize: 13,
-    fontWeight: '800',
-    overflow: 'hidden',
-    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  wordText: { flex: 1 },
-  chevron: { fontSize: 24, color: colors.pink, marginLeft: 8 },
+  numberText: { color: colors.primaryDark, fontSize: 13, fontWeight: '800' },
+  term: { flex: 1 },
   testBar: {
     padding: 16,
     gap: 10,

@@ -86,6 +86,7 @@ function loadModules() {
     cards: require('@/db/cards') as typeof import('@/db/cards'),
     reviews: require('@/db/reviews') as typeof import('@/db/reviews'),
     units: require('@/db/units') as typeof import('@/db/units'),
+    practice: require('@/db/practice') as typeof import('@/db/practice'),
     starter: require('@/starter/starterDecks') as typeof import('@/starter/starterDecks'),
     schema: require('@/db/schema') as typeof import('@/db/schema'),
     db: (require('@/db/client') as typeof import('@/db/client')).db,
@@ -111,23 +112,23 @@ async function api<T>(pathname: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-type Tokens = { accessToken: string; accessTokenExpiresAt: string; refreshToken: string };
+type Tokens = import('@/auth/session').AuthResponse;
 const PASSWORD = 'parola12345';
 
-async function signIn(device: Device, email: string, mode: 'register' | 'login'): Promise<void> {
-  const tokens = await api<Tokens>(`/auth/${mode}`, { email, password: PASSWORD });
-  device.engine.claimLocalData(email);
-  await device.session.saveSession({ email, ...tokens });
+async function signIn(device: Device, username: string, mode: 'register' | 'login'): Promise<void> {
+  const response = await api<Tokens>(`/auth/${mode}`, { username, password: PASSWORD });
+  device.engine.claimLocalData(response.user.username);
+  await device.session.saveSession(device.session.sessionFrom(response));
 }
 
 // A phone and a tablet signed in to the same brand-new account.
-async function twoDevices(): Promise<{ phone: Device; tablet: Device; email: string }> {
-  const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+async function twoDevices(): Promise<{ phone: Device; tablet: Device; username: string }> {
+  const username = `e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const phone = newDevice();
   const tablet = newDevice();
-  await signIn(phone, email, 'register');
-  await signIn(tablet, email, 'login');
-  return { phone, tablet, email };
+  await signIn(phone, username, 'register');
+  await signIn(tablet, username, 'login');
+  return { phone, tablet, username };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -291,7 +292,7 @@ test('a push whose answer is lost is sent again and applied only once', async ()
 });
 
 test('signing out wipes the device and signing in again restores everything from the server', async () => {
-  const { phone, email } = await twoDevices();
+  const { phone, username } = await twoDevices();
   const deckId = phone.decks.createDeck({ name: 'Geri gelecek', examId: 1 });
   const cardId = phone.cards.createCard(deckId, input('obtain', 'elde etmek'));
   phone.reviews.recordReview(cardId, 5);
@@ -303,7 +304,7 @@ test('signing out wipes the device and signing in again restores everything from
   expect(liveCards(phone)).toEqual([]);
   expect(phone.db.select().from(phone.schema.reviewStates).all()).toEqual([]);
 
-  await signIn(phone, email, 'login');
+  await signIn(phone, username, 'login');
   await phone.engine.requestSync();
 
   expect(liveCards(phone)).toEqual(['obtain=elde etmek']);
@@ -320,28 +321,28 @@ test('data left on the device by another account is not sent to the new account'
   await phone.session.clearSession();
   network = 'online';
 
-  const otherEmail = `e2e-other-${Date.now()}@example.com`;
-  await signIn(phone, otherEmail, 'register');
+  const otherUser = `e2e_other_${Date.now()}`;
+  await signIn(phone, otherUser, 'register');
   await phone.engine.requestSync();
 
   expect(liveCards(phone)).toEqual([]);
   expect(outboxSize(phone)).toBe(0);
   const second = newDevice();
-  await signIn(second, otherEmail, 'login');
+  await signIn(second, otherUser, 'login');
   await second.engine.requestSync();
   expect(second.db.select().from(second.schema.decks).all()).toEqual([]);
 });
 
 test('a unit test passed on the phone unlocks the next unit on the tablet too', async () => {
   const { phone, tablet } = await twoDevices();
-  expect(phone.starter.addStarterDecks()).toMatchObject({ added: 200, updated: 0 });
+  expect(phone.starter.addStarterDecks()).toMatchObject({ added: 224, updated: 0 });
   // Running it again must not duplicate anything.
   expect(phone.starter.addStarterDecks()).toMatchObject({ added: 0, updated: 0 });
 
   const deck = phone.db.select().from(phone.schema.decks).all().find((d) => d.name === 'YDS — Akademik fiiller')!;
   const before = phone.units.getUnits(deck.id);
-  expect(before.map((unit) => unit.cards.length)).toEqual([20, 20, 20, 20]);
-  expect(before.map((unit) => unit.status)).toEqual(['current', 'locked', 'locked', 'locked']);
+  expect(before.map((unit) => unit.cards.length)).toEqual([20, 20, 20, 20, 3]);
+  expect(before.map((unit) => unit.status)).toEqual(['current', 'locked', 'locked', 'locked', 'locked']);
 
   // A failed attempt (13 of 20) changes nothing; 14 of 20 passes.
   const answers = (correct: number) => before[0].cards.map((card, i) => ({ cardId: card.id, correct: i < correct }));
@@ -355,13 +356,58 @@ test('a unit test passed on the phone unlocks the next unit on the tablet too', 
 
   for (const device of [phone, tablet]) {
     const units = device.units.getUnits(deck.id);
-    expect(units.map((unit) => unit.status)).toEqual(['passed', 'current', 'locked', 'locked']);
+    expect(units.map((unit) => unit.status)).toEqual(['passed', 'current', 'locked', 'locked', 'locked']);
     expect(units[0].best).toEqual({ score: 14, total: 20 });
     // Passing the test was the first review of all 20 words, so they now have a schedule.
     expect(device.db.select().from(device.schema.reviewStates).all()).toHaveLength(20);
   }
-  expect(tablet.db.select().from(tablet.schema.cards).all()).toHaveLength(200);
+  expect(tablet.db.select().from(tablet.schema.cards).all()).toHaveLength(224);
   expect(outboxSize(phone)).toBe(0);
+});
+
+test('practice results from both devices end up in the same progress history', async () => {
+  const { phone, tablet } = await twoDevices();
+
+  phone.practice.savePracticeResult('general', 16, 20, new Date('2026-10-01T09:00:00.000Z'));
+  tablet.practice.savePracticeResult('general', 12, 20, new Date('2026-10-02T09:00:00.000Z'));
+  tablet.practice.savePracticeResult('cloze', 9, 10, new Date('2026-10-02T10:00:00.000Z'));
+
+  await phone.engine.requestSync();
+  await tablet.engine.requestSync();
+  await phone.engine.requestSync();
+
+  for (const device of [phone, tablet]) {
+    const progress = device.practice.getProgress();
+    const general = progress.find((item) => item.mode === 'general')!;
+    expect(general).toMatchObject({ attempts: 2, average: 70, best: 80 });
+    // Most recent first.
+    expect(general.recent.map((result) => result.score)).toEqual([12, 16]);
+    expect(progress.find((item) => item.mode === 'cloze')).toMatchObject({ attempts: 1, average: 90, best: 90 });
+    expect(progress.find((item) => item.mode === 'translation')).toMatchObject({ attempts: 0, average: null });
+  }
+});
+
+test('the built-in words are installed once and are due for review only after a unit test is passed', async () => {
+  const { phone } = await twoDevices();
+  await phone.engine.requestSync();
+
+  phone.starter.ensureStarterContent();
+  phone.starter.ensureStarterContent(); // second call must do nothing
+
+  expect(phone.practice.getAllCards()).toHaveLength(224);
+  expect(phone.reviews.getDueCards()).toHaveLength(0);
+
+  const deck = phone.db.select().from(phone.schema.decks).all()[0];
+  const unit = phone.units.getUnits(deck.id)[0];
+  phone.units.saveQuizResult(
+    deck.id,
+    0,
+    unit.cards.map((card) => ({ cardId: card.id, correct: true })),
+    new Date('2026-10-01T09:00:00.000Z'),
+  );
+
+  // Reviewed on 1 October with "İyi": due the next day, so they are due by now.
+  expect(phone.reviews.getDueCards()).toHaveLength(20);
 });
 
 test('the exam list is copied from the server', async () => {

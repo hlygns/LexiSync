@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 
 import { getSyncStatus, requestSync, subscribeSyncStatus, type SyncStatus } from '@/sync/engine';
 import { onLocalChange } from '@/sync/outbox';
+import { ensureStarterContent } from '@/starter/starterDecks';
 
 // Wait this long after the last local change, so typing several cards causes one sync, not several.
 const DEBOUNCE_MS = 1500;
@@ -16,6 +17,14 @@ export function useAutoSync(enabled: boolean): void {
     if (!enabled) return;
 
     void requestSync();
+
+    // After the first successful sync the built-in words are installed (or updated). Writing them
+    // fills the outbox, which triggers the next sync by itself.
+    const installStarter = () => {
+      if (getSyncStatus().state === 'idle' && getSyncStatus().lastSyncedAt) ensureStarterContent();
+    };
+    installStarter();
+    const unsubscribeStatus = subscribeSyncStatus(installStarter);
 
     // 1. The app comes back to the foreground.
     const appState = AppState.addEventListener('change', (state) => {
@@ -43,6 +52,7 @@ export function useAutoSync(enabled: boolean): void {
       appState.remove();
       network.remove();
       unsubscribeLocal();
+      unsubscribeStatus();
       clearTimeout(debounce);
       clearInterval(interval);
     };

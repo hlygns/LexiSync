@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, lte } from 'drizzle-orm';
 
 import { db, type Tx } from '@/db/client';
 import { getDeviceId } from '@/db/meta';
-import { cards, reviewLogs, reviewStates, type Card, type ReviewState } from '@/db/schema';
+import { cards, decks, reviewLogs, reviewStates, type Card, type ReviewState } from '@/db/schema';
 import { uuidv7 } from '@/db/uuid';
 import { dueAt, INITIAL_STATE, review, type Grade, type Sm2State } from '@/srs/sm2';
 import { enqueueReviewLog } from '@/sync/outbox';
@@ -14,17 +14,18 @@ export function endOfToday(now: Date = new Date()): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 }
 
-// Cards to repeat now: already learned (they have a state row) and due today or earlier.
+// Words to repeat now, across all decks: already learned (they have a state row) and due today or earlier.
 // Words that were never studied are not here; they are introduced unit by unit.
-export function getDueCards(deckId: string, now: Date = new Date()): DueCard[] {
+export function getDueCards(now: Date = new Date()): DueCard[] {
   return db
     .select({ card: cards, state: reviewStates })
     .from(cards)
+    .innerJoin(decks, eq(decks.id, cards.deckId))
     .innerJoin(reviewStates, eq(reviewStates.cardId, cards.id))
     .where(
       and(
-        eq(cards.deckId, deckId),
         isNull(cards.deletedAt),
+        isNull(decks.deletedAt),
         lte(reviewStates.dueAt, endOfToday(now).toISOString()),
       ),
     )

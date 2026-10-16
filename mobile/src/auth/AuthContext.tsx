@@ -1,21 +1,25 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { postJson } from '@/api/client';
-import { clearSession, loadSession, saveSession, subscribeSession, type Session } from '@/auth/session';
+import {
+  clearSession,
+  loadSession,
+  saveSession,
+  sessionFrom,
+  subscribeSession,
+  type AuthResponse,
+  type Session,
+} from '@/auth/session';
 import { claimLocalData, wipeLocalData } from '@/sync/engine';
 
-type AuthResponse = {
-  accessToken: string;
-  accessTokenExpiresAt: string;
-  refreshToken: string;
-};
+export type Registration = { username: string; password: string; motivation: string | null; dailyGoal: number };
 
 type AuthContextValue = {
   session: Session | null;
   // True until the stored session has been read on app start.
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  signIn: (username: string, password: string) => Promise<void>;
+  register: (registration: Registration) => Promise<void>;
   // Also removes this account's data from the device.
   signOut: () => Promise<void>;
 };
@@ -34,18 +38,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  async function authenticate(path: string, email: string, password: string) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const response = await postJson<AuthResponse>(path, { email: normalizedEmail, password });
-    claimLocalData(normalizedEmail);
-    await saveSession({ email: normalizedEmail, ...response });
+  async function authenticate(path: string, body: Record<string, unknown>) {
+    const response = await postJson<AuthResponse>(path, body);
+    claimLocalData(response.user.username);
+    await saveSession(sessionFrom(response));
   }
 
   const value: AuthContextValue = {
     session,
     isLoading,
-    signIn: (email, password) => authenticate('/auth/login', email, password),
-    register: (email, password) => authenticate('/auth/register', email, password),
+    signIn: (username, password) => authenticate('/auth/login', { username: username.trim().toLowerCase(), password }),
+    register: (registration) =>
+      authenticate('/auth/register', { ...registration, username: registration.username.trim().toLowerCase() }),
     signOut: async () => {
       wipeLocalData();
       await clearSession();

@@ -1,11 +1,22 @@
-import { and, count, eq, gte, isNull, lte } from 'drizzle-orm';
+import { count, gte } from 'drizzle-orm';
 
 import { db } from '@/db/client';
-import { endOfToday } from '@/db/reviews';
-import { cards, decks, reviewLogs, reviewStates } from '@/db/schema';
+import { getDueCards } from '@/db/reviews';
+import { practiceResults, reviewLogs, reviewStates } from '@/db/schema';
 import { computeStreak, localDayKey } from '@/stats/streak';
 
-export type Stats = { reviewedToday: number; due: number; streak: number };
+export type Stats = {
+  // Reviews done today (a passed unit test counts as one review per word).
+  reviewedToday: number;
+  // Learned words that are due again today or earlier.
+  due: number;
+  // Consecutive days with at least one review.
+  streak: number;
+  // Words that have been learned at least once.
+  learned: number;
+  // Practice sessions finished, all modes together.
+  testsTaken: number;
+};
 
 // Everything is computed from the local database, so the numbers are available offline.
 export function getStats(now: Date = new Date()): Stats {
@@ -13,21 +24,8 @@ export function getStats(now: Date = new Date()): Stats {
 
   const reviewedToday =
     db.select({ total: count() }).from(reviewLogs).where(gte(reviewLogs.reviewedAt, startOfToday)).get()?.total ?? 0;
-
-  // Learned words that are due today or earlier, in any deck that still exists.
-  const due = db
-    .select({ id: cards.id })
-    .from(cards)
-    .innerJoin(decks, eq(decks.id, cards.deckId))
-    .innerJoin(reviewStates, eq(reviewStates.cardId, cards.id))
-    .where(
-      and(
-        isNull(cards.deletedAt),
-        isNull(decks.deletedAt),
-        lte(reviewStates.dueAt, endOfToday(now).toISOString()),
-      ),
-    )
-    .all().length;
+  const learned = db.select({ total: count() }).from(reviewStates).get()?.total ?? 0;
+  const testsTaken = db.select({ total: count() }).from(practiceResults).get()?.total ?? 0;
 
   const reviewDays = db
     .select({ reviewedAt: reviewLogs.reviewedAt })
@@ -35,5 +33,11 @@ export function getStats(now: Date = new Date()): Stats {
     .all()
     .map((log) => localDayKey(new Date(log.reviewedAt)));
 
-  return { reviewedToday, due, streak: computeStreak(reviewDays, now) };
+  return {
+    reviewedToday,
+    due: getDueCards(now).length,
+    streak: computeStreak(reviewDays, now),
+    learned,
+    testsTaken,
+  };
 }

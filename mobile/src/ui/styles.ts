@@ -16,6 +16,19 @@ export const colors = {
   onPrimary: '#FFFFFF',
 };
 
+// One strong colour per study area, all from the same pink-red family, so the home screen
+// is colourful without looking random. "soft" is the matching pale tint.
+export const accents = {
+  rose: { main: '#C2415B', soft: '#F8E1E6' },
+  dusty: { main: '#D9788C', soft: '#FBE9ED' },
+  plum: { main: '#8E3B5E', soft: '#F1E0E8' },
+  coral: { main: '#DC6B5A', soft: '#FCE7E3' },
+  berry: { main: '#A8325A', soft: '#F6DEE7' },
+  wine: { main: '#7A2338', soft: '#EFDCE1' },
+  mauve: { main: '#B56A8C', soft: '#F5E4EC' },
+};
+export type Accent = keyof typeof accents;
+
 // Styles shared by more than one screen.
 export const common = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
@@ -31,11 +44,11 @@ export const common = StyleSheet.create({
     color: colors.text,
     marginBottom: 16,
   },
-  button: { backgroundColor: colors.primary, borderRadius: 12, padding: 14, alignItems: 'center' },
+  button: { backgroundColor: colors.primary, borderRadius: 14, padding: 14, alignItems: 'center' },
   buttonDisabled: { opacity: 0.45 },
   buttonText: { color: colors.onPrimary, fontSize: 16, fontWeight: '700' },
   outlineButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 13,
     alignItems: 'center',
     borderWidth: 1.5,
@@ -43,16 +56,18 @@ export const common = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   outlineButtonText: { color: colors.primary, fontSize: 16, fontWeight: '700' },
-  dangerText: { color: colors.danger, fontSize: 15, textAlign: 'center', padding: 14 },
-  // A white rounded card on the pink background.
+  // A white rounded card on the pink background, with a soft shadow.
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 18,
     padding: 16,
     marginHorizontal: 16,
     marginBottom: 12,
+    elevation: 2,
+    shadowColor: colors.primaryDark,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
   rowTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   rowSubtitle: { fontSize: 14, color: colors.muted, marginTop: 4 },
@@ -68,6 +83,7 @@ export const common = StyleSheet.create({
     marginBottom: 10,
   },
   empty: { textAlign: 'center', color: colors.muted, marginTop: 48, paddingHorizontal: 32, fontSize: 16, lineHeight: 22 },
+  center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   footer: { padding: 16, gap: 10 },
   progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.pink, overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4, backgroundColor: colors.primary },

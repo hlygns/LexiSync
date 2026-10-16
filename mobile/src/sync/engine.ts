@@ -1,4 +1,4 @@
-import { asc, count, eq, inArray } from 'drizzle-orm';
+import { asc, count, eq, inArray, notInArray } from 'drizzle-orm';
 
 import { ApiError, request } from '@/api/client';
 import { getSession } from '@/auth/session';
@@ -6,7 +6,18 @@ import { authorizedRequest } from '@/auth/tokens';
 import { db, type Tx } from '@/db/client';
 import { getMeta, setMeta } from '@/db/meta';
 import { rebuildReviewState } from '@/db/reviews';
-import { cards, decks, exams, outbox, quizResults, reviewLogs, reviewStates, syncMeta } from '@/db/schema';
+import {
+  cards,
+  decks,
+  exams,
+  outbox,
+  practiceResults,
+  quizResults,
+  reviewLogs,
+  reviewStates,
+  syncMeta,
+  type PracticeMode,
+} from '@/db/schema';
 import { normalizeDate, shouldApplyRemote } from '@/sync/merge';
 import { enqueueCard, enqueueDeck } from '@/sync/outbox';
 
@@ -38,6 +49,15 @@ type PullResponse = {
   cards: RemoteCard[];
   reviewLogs: RemoteReviewLog[];
   quizResults: RemoteQuizResult[];
+  practiceResults: RemotePracticeResult[];
+};
+type RemotePracticeResult = {
+  id: string;
+  mode: PracticeMode;
+  score: number;
+  total: number;
+  completedAt: string;
+  deviceId: string;
 };
 type PushResponse = { results: { changeId: string; status: string; reason: string | null }[] };
 
@@ -231,6 +251,14 @@ function applyPull(tx: Tx, response: PullResponse): void {
       .onConflictDoNothing()
       .run();
   }
+
+  // Practice sessions finished on another device complete the progress history here.
+  for (const remote of response.practiceResults ?? []) {
+    tx.insert(practiceResults)
+      .values({ ...remote, completedAt: normalizeDate(remote.completedAt) })
+      .onConflictDoNothing()
+      .run();
+  }
 }
 
 // Reference data, public endpoint. Failure is not a sync failure: the previous copy keeps working.
@@ -258,21 +286,23 @@ export function wipeLocalData(): void {
   db.transaction((tx) => {
     tx.delete(outbox).run();
     tx.delete(quizResults).run();
+    tx.delete(practiceResults).run();
     tx.delete(reviewStates).run();
     tx.delete(reviewLogs).run();
     tx.delete(cards).run();
     tx.delete(decks).run();
-    tx.delete(syncMeta).where(inArray(syncMeta.key, [LAST_VERSION_KEY, OWNER_KEY])).run();
+    // Everything remembered about the account goes too; the device id and the server address survive.
+    tx.delete(syncMeta).where(notInArray(syncMeta.key, ['deviceId', 'apiUrl'])).run();
   });
   setStatus({ state: 'idle', lastSyncedAt: null });
 }
 
 // Called right after sign-in. If the data on the device belongs to a different account
 // (the previous user was signed out by an expired session), it must not leak into this one.
-export function claimLocalData(email: string): void {
+export function claimLocalData(username: string): void {
   const owner = getMeta(OWNER_KEY);
-  if (owner && owner !== email) {
+  if (owner && owner !== username) {
     wipeLocalData();
   }
-  setMeta(OWNER_KEY, email);
+  setMeta(OWNER_KEY, username);
 }

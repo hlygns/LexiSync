@@ -50,3 +50,19 @@ describe('normalizeDate', () => {
     expect(normalizeDate(null)).toBeNull();
   });
 });
+
+describe('normalizeApiUrl', () => {
+  const { normalizeApiUrl } = require('@/api/url') as typeof import('@/api/url');
+
+  test('a bare IP address gets http and the API port', () => {
+    expect(normalizeApiUrl(' 192.168.1.49 ')).toBe('http://192.168.1.49:8080');
+  });
+
+  test('an address with a port keeps that port', () => {
+    expect(normalizeApiUrl('192.168.1.49:5000')).toBe('http://192.168.1.49:5000');
+  });
+
+  test('a full https address is kept, without the trailing slash', () => {
+    expect(normalizeApiUrl('https://lexisync.example.com/')).toBe('https://lexisync.example.com');
+  });
+});

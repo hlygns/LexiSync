@@ -1,4 +1,4 @@
-const baseUrl = process.env.EXPO_PUBLIC_API_URL;
+import { getApiUrl } from '@/api/server';
 
 // A free-tier server may need a while to wake up; give up after this long and try again later.
 const TIMEOUT_MS = 20_000;
@@ -17,6 +17,7 @@ export class ApiError extends Error {
 type RequestOptions = { body?: unknown; accessToken?: string };
 
 export async function request<T>(method: 'GET' | 'POST', path: string, options: RequestOptions = {}): Promise<T> {
+  const baseUrl = getApiUrl();
   if (!baseUrl) {
     throw new Error('EXPO_PUBLIC_API_URL is not set. Copy .env.example to .env.');
   }

@@ -48,6 +48,13 @@ export function enqueueQuizResult(
   enqueue(tx, 'quizResult', result);
 }
 
+export function enqueuePracticeResult(
+  tx: Tx,
+  result: { id: string; mode: string; score: number; total: number; completedAt: string; deviceId: string },
+): void {
+  enqueue(tx, 'practiceResult', result);
+}
+
 // The sync engine subscribes here to learn that there is something new to push.
 type Listener = () => void;
 const listeners = new Set<Listener>();

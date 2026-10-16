@@ -19,7 +19,10 @@ public record ReviewLogDto(Guid Id, Guid CardId, int Grade, DateTimeOffset Revie
 
 public record QuizResultDto(Guid Id, Guid DeckId, int UnitIndex, int Score, int Total, DateTimeOffset CompletedAt, Guid DeviceId);
 
-// One row from a device's outbox. Entity is "deck", "card", "reviewLog" or "quizResult"; Data is the matching DTO.
+public record PracticeResultDto(Guid Id, string Mode, int Score, int Total, DateTimeOffset CompletedAt, Guid DeviceId);
+
+// One row from a device's outbox. Entity is "deck", "card", "reviewLog", "quizResult" or "practiceResult";
+// Data is the matching DTO.
 public record PushChange(Guid ChangeId, string Entity, JsonElement Data);
 
 public record PushRequest(List<PushChange> Changes);
@@ -46,4 +49,5 @@ public record PullResponse(
     List<DeckDto> Decks,
     List<CardDto> Cards,
     List<ReviewLogDto> ReviewLogs,
-    List<QuizResultDto> QuizResults);
+    List<QuizResultDto> QuizResults,
+    List<PracticeResultDto> PracticeResults);

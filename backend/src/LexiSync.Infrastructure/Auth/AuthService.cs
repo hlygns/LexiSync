@@ -15,18 +15,23 @@ namespace LexiSync.Infrastructure.Auth;
 
 public class AuthService(AppDbContext db, IPasswordHasher<User> passwordHasher, JwtOptions jwt) : IAuthService
 {
+    // Name of the access token claim that carries the username.
+    public const string UsernameClaim = "username";
+
     public async Task<AuthResponse?> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
-        var email = NormalizeEmail(request.Email);
-        if (await db.Users.AnyAsync(u => u.Email == email, cancellationToken))
+        var username = NormalizeUsername(request.Username);
+        if (await db.Users.AnyAsync(u => u.Username == username, cancellationToken))
             return null;
 
         var user = new User
         {
             Id = Guid.CreateVersion7(),
-            Email = email,
+            Username = username,
             PasswordHash = string.Empty,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            Motivation = request.Motivation,
+            DailyGoal = request.DailyGoal ?? User.DefaultDailyGoal
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
         db.Users.Add(user);
@@ -35,7 +40,7 @@ public class AuthService(AppDbContext db, IPasswordHasher<User> passwordHasher, 
         {
             return await IssueTokensAsync(user, cancellationToken);
         }
-        // Two registrations with the same email at the same moment: the unique index stops the second one.
+        // Two registrations with the same username at the same moment: the unique index stops the second one.
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             return null;
@@ -44,8 +49,8 @@ public class AuthService(AppDbContext db, IPasswordHasher<User> passwordHasher, 
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
-        var email = NormalizeEmail(request.Email);
-        var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
+        var username = NormalizeUsername(request.Username);
+        var user = await db.Users.SingleOrDefaultAsync(u => u.Username == username, cancellationToken);
         if (user is null)
             return null;
 
@@ -96,7 +101,7 @@ public class AuthService(AppDbContext db, IPasswordHasher<User> passwordHasher, 
             Subject = new ClaimsIdentity(
             [
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email)
+                new Claim(UsernameClaim, user.Username)
             ]),
             Expires = accessTokenExpiresAt.UtcDateTime,
             SigningCredentials = new SigningCredentials(
@@ -115,10 +120,14 @@ public class AuthService(AppDbContext db, IPasswordHasher<User> passwordHasher, 
         });
 
         await db.SaveChangesAsync(cancellationToken);
-        return new AuthResponse(accessToken, accessTokenExpiresAt, refreshToken);
+        return new AuthResponse(
+            accessToken,
+            accessTokenExpiresAt,
+            refreshToken,
+            new UserProfile(user.Username, user.Motivation, user.DailyGoal));
     }
 
-    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+    private static string NormalizeUsername(string username) => username.Trim().ToLowerInvariant();
 
     private static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));

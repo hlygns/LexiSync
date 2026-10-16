@@ -13,9 +13,9 @@ public class SyncTests(ApiFactory factory)
     // A phone and a tablet signed in to the same new account.
     private async Task<(TestDevice Phone, TestDevice Tablet)> TwoDevicesAsync()
     {
-        var email = TestDevice.NewEmail();
-        var phone = await TestDevice.RegisterAsync(factory, email);
-        var tablet = await TestDevice.LoginAsync(factory, email);
+        var username = TestDevice.NewUsername();
+        var phone = await TestDevice.RegisterAsync(factory, username);
+        var tablet = await TestDevice.LoginAsync(factory, username);
         return (phone, tablet);
     }
 
@@ -258,6 +258,38 @@ public class SyncTests(ApiFactory factory)
 
         Assert.Equal(PushStatus.Rejected, result.Status);
         Assert.Empty((await phone.PullAsync()).QuizResults);
+    }
+
+    [Fact]
+    public async Task Practice_results_follow_the_account_and_stay_private()
+    {
+        var (phone, tablet) = await TwoDevicesAsync();
+        var stranger = await TestDevice.RegisterAsync(factory);
+        var result = new PracticeResultDto(Guid.CreateVersion7(), "general", Score: 16, Total: 20, DateTimeOffset.UtcNow, phone.DeviceId);
+
+        var first = await phone.PushAsync("practiceResult", result);
+        var again = await phone.PushAsync("practiceResult", result);
+        var reuseId = await stranger.PushAsync("practiceResult", result with { Score = 0 });
+
+        Assert.Equal(PushStatus.Applied, first.Status);
+        Assert.Equal(PushStatus.Ignored, again.Status);
+        Assert.Equal(PushStatus.Ignored, reuseId.Status);
+        var pulled = Assert.Single((await tablet.PullAsync()).PracticeResults);
+        Assert.Equal(("general", 16, 20), (pulled.Mode, pulled.Score, pulled.Total));
+        Assert.Empty((await stranger.PullAsync()).PracticeResults);
+    }
+
+    [Theory]
+    [InlineData("grammar", 5, 10)]
+    [InlineData("cloze", 11, 10)]
+    [InlineData("cloze", 0, 0)]
+    public async Task Practice_result_with_unknown_mode_or_impossible_score_is_rejected(string mode, int score, int total)
+    {
+        var phone = await TestDevice.RegisterAsync(factory);
+
+        var result = await phone.PushAsync("practiceResult", new PracticeResultDto(Guid.CreateVersion7(), mode, score, total, DateTimeOffset.UtcNow, phone.DeviceId));
+
+        Assert.Equal(PushStatus.Rejected, result.Status);
     }
 
     [Fact]

@@ -10,9 +10,9 @@ public class AuthTests(ApiFactory factory)
 {
     private readonly HttpClient _http = factory.CreateClient();
 
-    private async Task<AuthResponse> RegisterAsync(string email)
+    private async Task<AuthResponse> RegisterAsync(string username)
     {
-        var response = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(email, TestDevice.Password));
+        var response = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(username, TestDevice.Password));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
     }
@@ -38,10 +38,10 @@ public class AuthTests(ApiFactory factory)
     [Fact]
     public async Task Registered_user_can_log_in_and_call_a_protected_endpoint()
     {
-        var email = TestDevice.NewEmail();
-        await RegisterAsync(email);
+        var username = TestDevice.NewUsername();
+        await RegisterAsync(username);
 
-        var login = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(email, TestDevice.Password));
+        var login = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(username, TestDevice.Password));
         var auth = (await login.Content.ReadFromJsonAsync<AuthResponse>())!;
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/auth/me");
@@ -49,48 +49,82 @@ public class AuthTests(ApiFactory factory)
         var me = await _http.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
-        Assert.Contains(email, await me.Content.ReadAsStringAsync());
+        Assert.Contains(username, await me.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task Registering_the_same_email_twice_is_a_conflict_even_with_different_casing()
+    public async Task Registering_the_same_username_twice_is_a_conflict_even_with_different_casing()
     {
-        var email = TestDevice.NewEmail();
-        await RegisterAsync(email);
+        var username = TestDevice.NewUsername();
+        await RegisterAsync(username);
 
-        var second = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(email.ToUpperInvariant(), TestDevice.Password));
+        var second = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(username.ToUpperInvariant(), TestDevice.Password));
 
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
     }
 
     [Theory]
-    [InlineData("not-an-email", "parola12345")]
-    [InlineData("valid@example.com", "short")]
-    public async Task Invalid_registration_input_is_rejected(string email, string password)
+    [InlineData("ab", "parola12345")]
+    [InlineData("has space", "parola12345")]
+    [InlineData("name@example.com", "parola12345")]
+    [InlineData("valid_name", "short")]
+    public async Task Invalid_registration_input_is_rejected(string username, string password)
     {
-        var response = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(email, password));
+        var response = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(username, password));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task Wrong_password_and_unknown_email_get_the_same_answer()
+    public async Task Wrong_password_and_unknown_username_get_the_same_answer()
     {
-        var email = TestDevice.NewEmail();
-        await RegisterAsync(email);
+        var username = TestDevice.NewUsername();
+        await RegisterAsync(username);
 
-        var wrongPassword = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(email, "wrong-password"));
-        var unknownEmail = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(TestDevice.NewEmail(), TestDevice.Password));
+        var wrongPassword = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(username, "wrong-password"));
+        var unknownUser = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(TestDevice.NewUsername(), TestDevice.Password));
 
         Assert.Equal(HttpStatusCode.Unauthorized, wrongPassword.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, unknownEmail.StatusCode);
-        Assert.Equal(await wrongPassword.Content.ReadAsStringAsync(), await unknownEmail.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Unauthorized, unknownUser.StatusCode);
+        Assert.Equal(await wrongPassword.Content.ReadAsStringAsync(), await unknownUser.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Sign_up_answers_are_saved_and_returned_with_every_login()
+    {
+        var username = TestDevice.NewUsername();
+        var register = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(username, TestDevice.Password, "graduate", 30));
+        var login = await _http.PostAsJsonAsync("/auth/login", new LoginRequest(username.ToUpperInvariant(), TestDevice.Password));
+
+        Assert.Equal(HttpStatusCode.OK, register.StatusCode);
+        var profile = (await login.Content.ReadFromJsonAsync<AuthResponse>())!.User;
+        Assert.Equal(new UserProfile(username, "graduate", 30), profile);
+    }
+
+    [Fact]
+    public async Task Without_sign_up_answers_the_daily_goal_defaults_to_twenty()
+    {
+        var auth = await RegisterAsync(TestDevice.NewUsername());
+
+        Assert.Null(auth.User.Motivation);
+        Assert.Equal(20, auth.User.DailyGoal);
+    }
+
+    [Theory]
+    [InlineData("lottery", 20)]
+    [InlineData("career", 0)]
+    [InlineData("career", 500)]
+    public async Task Unknown_motivation_or_impossible_daily_goal_is_rejected(string motivation, int dailyGoal)
+    {
+        var response = await _http.PostAsJsonAsync("/auth/register", new RegisterRequest(TestDevice.NewUsername(), TestDevice.Password, motivation, dailyGoal));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task Refresh_token_works_once_and_returns_a_new_pair()
     {
-        var auth = await RegisterAsync(TestDevice.NewEmail());
+        var auth = await RegisterAsync(TestDevice.NewUsername());
 
         var first = await _http.PostAsJsonAsync("/auth/refresh", new RefreshRequest(auth.RefreshToken));
         var second = await _http.PostAsJsonAsync("/auth/refresh", new RefreshRequest(auth.RefreshToken));

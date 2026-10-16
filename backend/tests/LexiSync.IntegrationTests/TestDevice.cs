@@ -13,20 +13,20 @@ public class TestDevice(HttpClient http)
 
     public const string Password = "parola12345";
 
-    public static string NewEmail() => $"user-{Guid.NewGuid():N}@example.com";
+    public static string NewUsername() => $"u_{Guid.NewGuid():N}"[..30];
 
-    public static async Task<TestDevice> RegisterAsync(ApiFactory factory, string? email = null)
+    public static async Task<TestDevice> RegisterAsync(ApiFactory factory, string? username = null)
     {
         var http = factory.CreateClient();
-        var response = await http.PostAsJsonAsync("/auth/register", new RegisterRequest(email ?? NewEmail(), Password));
+        var response = await http.PostAsJsonAsync("/auth/register", new RegisterRequest(username ?? NewUsername(), Password));
         response.EnsureSuccessStatusCode();
         return await SignedInAsync(http, response);
     }
 
-    public static async Task<TestDevice> LoginAsync(ApiFactory factory, string email)
+    public static async Task<TestDevice> LoginAsync(ApiFactory factory, string username)
     {
         var http = factory.CreateClient();
-        var response = await http.PostAsJsonAsync("/auth/login", new LoginRequest(email, Password));
+        var response = await http.PostAsJsonAsync("/auth/login", new LoginRequest(username, Password));
         response.EnsureSuccessStatusCode();
         return await SignedInAsync(http, response);
     }

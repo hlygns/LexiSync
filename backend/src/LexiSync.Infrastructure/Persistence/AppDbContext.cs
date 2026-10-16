@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ProcessedChange> ProcessedChanges => Set<ProcessedChange>();
     public DbSet<QuizResult> QuizResults => Set<QuizResult>();
+    public DbSet<PracticeResult> PracticeResults => Set<PracticeResult>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,8 +24,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<User>(user =>
         {
-            user.Property(u => u.Email).HasMaxLength(256);
-            user.HasIndex(u => u.Email).IsUnique();
+            // 256 because accounts created before usernames existed keep their email address here.
+            user.Property(u => u.Username).HasMaxLength(256);
+            user.HasIndex(u => u.Username).IsUnique();
+            user.Property(u => u.Motivation).HasMaxLength(20);
+            user.Property(u => u.DailyGoal).HasDefaultValue(User.DefaultDailyGoal);
         });
 
         modelBuilder.Entity<Exam>(exam =>
@@ -79,6 +83,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             result.HasOne<User>().WithMany().HasForeignKey(r => r.UserId);
             result.HasOne<Deck>().WithMany().HasForeignKey(r => r.DeckId);
+            result.HasIndex(r => new { r.UserId, r.ServerVersion });
+        });
+
+        modelBuilder.Entity<PracticeResult>(result =>
+        {
+            result.Property(r => r.Mode).HasMaxLength(20);
+            result.HasOne<User>().WithMany().HasForeignKey(r => r.UserId);
             result.HasIndex(r => new { r.UserId, r.ServerVersion });
         });
 

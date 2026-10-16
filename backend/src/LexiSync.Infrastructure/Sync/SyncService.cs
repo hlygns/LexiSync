@@ -76,13 +76,20 @@ public class SyncService(AppDbContext db) : ISyncService
             .Select(r => new { Dto = new QuizResultDto(r.Id, r.DeckId, r.UnitIndex, r.Score, r.Total, r.CompletedAt, r.DeviceId), r.ServerVersion })
             .ToListAsync(cancellationToken);
 
+        var practiceResults = await db.PracticeResults.AsNoTracking()
+            .Where(r => r.UserId == userId && r.ServerVersion > since)
+            .OrderBy(r => r.ServerVersion)
+            .Select(r => new { Dto = new PracticeResultDto(r.Id, r.Mode, r.Score, r.Total, r.CompletedAt, r.DeviceId), r.ServerVersion })
+            .ToListAsync(cancellationToken);
+
         var latestVersion = new[]
         {
             since,
             decks.Count > 0 ? decks[^1].ServerVersion : 0,
             cards.Count > 0 ? cards[^1].ServerVersion : 0,
             logs.Count > 0 ? logs[^1].ServerVersion : 0,
-            quizResults.Count > 0 ? quizResults[^1].ServerVersion : 0
+            quizResults.Count > 0 ? quizResults[^1].ServerVersion : 0,
+            practiceResults.Count > 0 ? practiceResults[^1].ServerVersion : 0
         }.Max();
 
         return new PullResponse(
@@ -90,7 +97,8 @@ public class SyncService(AppDbContext db) : ISyncService
             decks,
             cards,
             logs.Select(l => l.Dto).ToList(),
-            quizResults.Select(r => r.Dto).ToList());
+            quizResults.Select(r => r.Dto).ToList(),
+            practiceResults.Select(r => r.Dto).ToList());
     }
 
     private async Task<(string Status, string? Reason)> ApplyAsync(Guid userId, PushChange change, CancellationToken cancellationToken)
@@ -103,6 +111,7 @@ public class SyncService(AppDbContext db) : ISyncService
                 "card" => await ApplyCardAsync(userId, Deserialize<CardDto>(change.Data), cancellationToken),
                 "reviewLog" => await ApplyReviewLogAsync(userId, Deserialize<ReviewLogDto>(change.Data), cancellationToken),
                 "quizResult" => await ApplyQuizResultAsync(userId, Deserialize<QuizResultDto>(change.Data), cancellationToken),
+                "practiceResult" => await ApplyPracticeResultAsync(userId, Deserialize<PracticeResultDto>(change.Data), cancellationToken),
                 _ => (PushStatus.Rejected, $"Unknown entity '{change.Entity}'.")
             };
         }
@@ -268,6 +277,31 @@ public class SyncService(AppDbContext db) : ISyncService
             UserId = userId,
             DeckId = dto.DeckId,
             UnitIndex = dto.UnitIndex,
+            Score = dto.Score,
+            Total = dto.Total,
+            CompletedAt = dto.CompletedAt.ToUniversalTime(),
+            DeviceId = dto.DeviceId,
+            ServerVersion = await NextVersionAsync(cancellationToken)
+        });
+        return (PushStatus.Applied, null);
+    }
+
+    private async Task<(string, string?)> ApplyPracticeResultAsync(Guid userId, PracticeResultDto dto, CancellationToken cancellationToken)
+    {
+        if (!PracticeResult.Modes.Contains(dto.Mode))
+            return (PushStatus.Rejected, "Unknown practice mode.");
+        if (dto.Total is < 1 or > 100 || dto.Score < 0 || dto.Score > dto.Total)
+            return (PushStatus.Rejected, "Score or total is out of range.");
+
+        // Append-only. An Id that already exists is left alone, whoever owns it.
+        if (await db.PracticeResults.FindAsync([dto.Id], cancellationToken) is not null)
+            return (PushStatus.Ignored, "Practice result already exists.");
+
+        db.PracticeResults.Add(new PracticeResult
+        {
+            Id = dto.Id,
+            UserId = userId,
+            Mode = dto.Mode,
             Score = dto.Score,
             Total = dto.Total,
             CompletedAt = dto.CompletedAt.ToUniversalTime(),
